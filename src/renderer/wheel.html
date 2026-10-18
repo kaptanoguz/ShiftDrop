@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' file: data:">
+<title>ShiftDrop</title>
+<link rel="stylesheet" href="wheel.css">
+</head>
+<body>
+  <div id="stage" class="closed">
+    <svg id="ring" viewBox="0 0 480 480" width="480" height="480" aria-hidden="true">
+      <defs>
+        <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#FFB547"/>
+          <stop offset="1" stop-color="#FF6A00"/>
+        </linearGradient>
+        <linearGradient id="progressGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#FFC15A"/>
+          <stop offset="1" stop-color="#FF5A00"/>
+        </linearGradient>
+      </defs>
+      <g id="segments"></g>
+      <circle id="track" cx="240" cy="240" r="84"/>
+      <circle id="progress" cx="240" cy="240" r="84" transform="rotate(-90 240 240)"/>
+    </svg>
+
+    <div id="center">
+      <div id="centerIdle">
+        <div id="catIcon"></div>
+        <div id="title">Dönüştür</div>
+        <div id="subtitle">Görsel</div>
+      </div>
+      <div id="centerBusy">
+        <div id="pct">0%</div>
+        <div id="busyLabel">Dönüştürülüyor</div>
+      </div>
+    </div>
+
+    <div id="modes"></div>
+    <div id="pages"></div>
+
+    <div id="result" draggable="false">
+      <div id="resultIcon"></div>
+      <div id="resultName"></div>
+      <div id="resultMeta"></div>
+      <div id="resultActions">
+        <button id="btnReveal" type="button">Klasörde göster</button>
+        <button id="btnOpen" type="button">Aç</button>
+      </div>
+      <div id="resultHint">Sürükleyip istediğin yere bırak</div>
+    </div>
+    <div id="burst"></div>
+  </div>
+<script src="icons.js"></script>
+<script src="wheel.js"></script>
+</body>
+</html>

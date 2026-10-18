@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src file: data:; media-src file:">
+<title>ShiftDrop</title>
+<style>
+  :root { --bg: rgba(255,255,255,.96); --text: #1d1d1f; --muted: #8b8b92; --shadow: rgba(30,20,10,.25); --chip: rgba(0,0,0,.06); }
+  @media (prefers-color-scheme: dark) { :root { --bg: rgba(34,34,38,.96); --text: #f5f5f7; --muted: #9a9aa2; --shadow: rgba(0,0,0,.55); --chip: rgba(255,255,255,.08); } }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; font-family: "Inter", "Cantarell", "Ubuntu", system-ui, sans-serif; color: var(--text); user-select: none; }
+  #card {
+    position: absolute; inset: 10px; border-radius: 22px; background: var(--bg); box-shadow: 0 14px 36px var(--shadow), inset 0 0 0 1px rgba(0,0,0,.05);
+    display: flex; flex-direction: column; overflow: hidden; -webkit-app-region: drag;
+    animation: pop 420ms cubic-bezier(.2,1.35,.4,1) both;
+  }
+  @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  #preview { flex: 1; display: grid; place-items: center; margin: 10px 10px 0; border-radius: 14px; overflow: hidden; background: var(--chip); -webkit-app-region: no-drag; cursor: grab; }
+  #preview img, #preview video { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+  #preview .big { width: 64px; height: 64px; color: #ff7a12; }
+  #preview .ext { font-weight: 800; font-size: 13px; color: var(--muted); margin-top: 4px; text-align: center; }
+  #bar { display: flex; align-items: center; gap: 6px; padding: 8px 10px 10px 14px; }
+  #name { flex: 1; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  button { -webkit-app-region: no-drag; border: 0; background: var(--chip); color: var(--text); width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; transition: background 150ms ease; }
+  button:hover { background: linear-gradient(135deg,#ffb547,#ff6a00); color: #fff; }
+  button svg { width: 14px; height: 14px; }
+</style>
+</head>
+<body>
+  <div id="card">
+    <div id="preview" draggable="true" title="Sürükleyip istediğin yere bırak"></div>
+    <div id="bar">
+      <div id="name"></div>
+      <button id="reveal" title="Klasörde göster"></button>
+      <button id="close" title="Kapat"></button>
+    </div>
+  </div>
+<script src="icons.js"></script>
+<script src="float.js"></script>
+</body>
+</html>

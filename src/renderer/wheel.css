@@ -1,0 +1,182 @@
+:root {
+  --seg: rgba(255, 255, 255, 0.94);
+  --seg-stroke: rgba(20, 20, 30, 0.07);
+  --seg-dim: rgba(255, 255, 255, 0.78);
+  --text: #1d1d1f;
+  --muted: #8b8b92;
+  --center: rgba(255, 255, 255, 0.97);
+  --chip: rgba(0, 0, 0, 0.06);
+  --chip-text: #55555c;
+  --shadow: rgba(30, 20, 10, 0.22);
+  --accent: #ff7a12;
+  --accent-2: #ff5a00;
+  --ok: #2fb36b;
+  --err: #e5484d;
+  --ease-spring: cubic-bezier(0.2, 1.35, 0.4, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --seg: rgba(40, 40, 44, 0.94);
+    --seg-stroke: rgba(255, 255, 255, 0.08);
+    --seg-dim: rgba(40, 40, 44, 0.8);
+    --text: #f5f5f7;
+    --muted: #9a9aa2;
+    --center: rgba(30, 30, 33, 0.97);
+    --chip: rgba(255, 255, 255, 0.08);
+    --chip-text: #c7c7cc;
+    --shadow: rgba(0, 0, 0, 0.5);
+  }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 480px; height: 480px; overflow: hidden;
+  background: transparent;
+  font-family: "Inter", "SF Pro Display", "Segoe UI Variable", "Cantarell", "Ubuntu", system-ui, sans-serif;
+  color: var(--text);
+  user-select: none; -webkit-user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+#stage { position: relative; width: 480px; height: 480px; }
+
+/* ---------- Halka ---------- */
+#ring { position: absolute; inset: 0; overflow: visible; filter: drop-shadow(0 16px 32px var(--shadow)) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.08)); }
+
+.seg {
+  transform-box: view-box;
+  transform-origin: 240px 240px;
+  transition: transform 260ms var(--ease-spring), opacity 200ms ease;
+  cursor: pointer;
+}
+.seg path.bg { fill: var(--seg); stroke: var(--seg); stroke-width: 12; stroke-linejoin: round; transition: fill 160ms ease, stroke 160ms ease; }
+.seg .label { font-size: 17px; font-weight: 700; letter-spacing: 0.02em; fill: var(--text); transition: fill 160ms ease; }
+.seg .label.small { font-size: 13.5px; letter-spacing: 0; }
+.seg .hint { font-size: 10.5px; font-weight: 500; fill: var(--muted); transition: fill 160ms ease; }
+.seg .glyph { color: var(--accent); transition: color 160ms ease; }
+
+.seg.hover { transform: translate(var(--dx), var(--dy)) scale(1.035); }
+.seg.hover path.bg { fill: url(#accent); stroke: url(#accent); }
+.seg.hover .label, .seg.hover .hint { fill: #fff; }
+.seg.hover .glyph { color: #fff; }
+#segments.has-hover .seg:not(.hover) { opacity: 0.82; }
+
+.seg.more .label { fill: var(--muted); font-size: 12px; }
+
+/* Açılış: dilimler sırayla, hafif dönerek yerine oturur */
+#stage.closed .seg, #stage.opening .seg { transform: scale(0.55) rotate(-24deg); opacity: 0; }
+#stage.open .seg { animation: segIn 460ms var(--ease-spring) both; animation-delay: calc(var(--i) * 26ms); }
+@keyframes segIn {
+  from { transform: scale(0.55) rotate(-24deg); opacity: 0; }
+  to { transform: scale(1) rotate(0); opacity: 1; }
+}
+#stage.open .seg.hover { animation: none; opacity: 1; }
+#stage.swap .seg { animation: segSwap 320ms var(--ease-out) both; animation-delay: calc(var(--i) * 18ms); }
+@keyframes segSwap {
+  from { transform: scale(0.9) rotate(14deg); opacity: 0; }
+  to { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+/* Bırak-sonra-seç durumu: kesik çizgili boş halka */
+.placeholder { fill: none; stroke: var(--muted); stroke-width: 2; stroke-dasharray: 6 10; opacity: 0.6; transform-origin: 240px 240px; animation: spin 18s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.placeholder-disc { fill: var(--seg); opacity: 0.55; }
+
+/* ---------- İlerleme halkası ---------- */
+#track, #progress { fill: none; stroke-width: 6; opacity: 0; transition: opacity 200ms ease; }
+#track { stroke: var(--chip); }
+#progress { stroke: url(#progressGrad); stroke-linecap: round; stroke-dasharray: 527.8; stroke-dashoffset: 527.8; transition: stroke-dashoffset 240ms ease, opacity 200ms ease; }
+#stage.busy #track, #stage.busy #progress { opacity: 1; }
+
+/* ---------- Merkez ---------- */
+#center {
+  position: absolute; left: 50%; top: 50%; width: 156px; height: 156px; margin: -78px 0 0 -78px;
+  border-radius: 50%; background: var(--center);
+  box-shadow: 0 10px 30px var(--shadow), inset 0 0 0 1px var(--seg-stroke);
+  display: grid; place-items: center; text-align: center;
+  transition: transform 380ms var(--ease-spring), opacity 220ms ease, background 200ms ease;
+  pointer-events: none;
+}
+#stage.closed #center { transform: scale(0.4); opacity: 0; }
+#stage.open #center { transform: scale(1); opacity: 1; }
+#stage.center-hot #center { transform: scale(0.94); }
+#stage.center-hot #title::after { content: ''; }
+
+#centerIdle, #centerBusy { grid-area: 1 / 1; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: opacity 200ms ease, transform 300ms var(--ease-out); }
+#centerBusy { opacity: 0; transform: scale(0.9); }
+#stage.busy #centerIdle { opacity: 0; transform: scale(0.9); }
+#stage.busy #centerBusy { opacity: 1; transform: scale(1); }
+
+#catIcon { width: 30px; height: 30px; color: var(--accent); margin-bottom: 2px; }
+#catIcon svg { width: 30px; height: 30px; }
+#catIcon.logo { width: 40px; height: 40px; }
+#title { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+#subtitle { font-size: 11.5px; color: var(--muted); max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#pct { font-size: 28px; font-weight: 750; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; background: linear-gradient(135deg, #ffb547, #ff5a00); -webkit-background-clip: text; color: transparent; }
+#busyLabel { font-size: 11.5px; color: var(--muted); }
+
+/* ---------- Mod çipleri (merkezin altında) ---------- */
+#modes {
+  position: absolute; left: 50%; top: calc(50% + 46px); transform: translateX(-50%);
+  display: flex; gap: 4px; pointer-events: none; transition: opacity 200ms ease;
+}
+#stage.closed #modes, #stage.busy #modes, #stage.done #modes { opacity: 0; }
+.mode {
+  font-size: 9.5px; font-weight: 600; padding: 3px 6px; border-radius: 999px; background: var(--chip); color: var(--chip-text);
+  display: flex; gap: 3px; align-items: center; transition: background 200ms ease, color 200ms ease;
+}
+.mode kbd { font: inherit; opacity: 0.75; }
+.mode.active { background: linear-gradient(135deg, #ffb547, #ff6a00); color: #fff; }
+
+#pages { position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%); display: flex; gap: 6px; }
+#pages i { width: 6px; height: 6px; border-radius: 50%; background: var(--seg); box-shadow: 0 1px 3px var(--shadow); transition: background 200ms ease, transform 200ms ease; }
+#pages i.on { background: var(--accent); transform: scale(1.25); }
+
+/* ---------- Sonuç kartı ---------- */
+#result {
+  position: absolute; left: 50%; top: 50%; width: 250px; margin-left: -125px; transform: translateY(-50%) scale(0.6);
+  padding: 22px 18px 16px; border-radius: 26px; background: var(--center);
+  box-shadow: 0 24px 60px var(--shadow), inset 0 0 0 1px var(--seg-stroke);
+  text-align: center; opacity: 0; pointer-events: none;
+  transition: transform 460ms var(--ease-spring), opacity 220ms ease;
+}
+#stage.done #result { opacity: 1; transform: translateY(-50%) scale(1); pointer-events: auto; cursor: grab; }
+#stage.done #segments, #stage.done #center { opacity: 0; transform: scale(0.7); transition: opacity 200ms ease, transform 300ms var(--ease-out); }
+#stage.done #segments { transform-origin: 240px 240px; }
+
+#resultIcon {
+  width: 52px; height: 52px; margin: 0 auto 10px; border-radius: 50%; display: grid; place-items: center; color: #fff;
+  background: linear-gradient(135deg, #ffb547, #ff6a00); box-shadow: 0 8px 20px rgba(255, 106, 0, 0.35);
+}
+#resultIcon svg { width: 28px; height: 28px; stroke-width: 2.6; }
+#resultIcon .ic path { stroke-dasharray: 30; stroke-dashoffset: 30; animation: draw 420ms 160ms var(--ease-out) forwards; }
+#result.error #resultIcon { background: linear-gradient(135deg, #ff7b7f, #e5484d); box-shadow: 0 8px 20px rgba(229, 72, 77, 0.35); }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+#resultName { font-size: 14px; font-weight: 650; word-break: break-all; line-height: 1.3; max-height: 2.6em; overflow: hidden; }
+#resultMeta { font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.35; max-height: 4em; overflow: hidden; }
+#resultActions { display: flex; gap: 6px; justify-content: center; margin-top: 14px; }
+#resultActions button {
+  font: inherit; font-size: 12px; font-weight: 600; border: 0; border-radius: 999px; padding: 7px 12px; cursor: pointer;
+  background: var(--chip); color: var(--text); transition: transform 150ms var(--ease-spring), background 150ms ease;
+}
+#resultActions button:hover { background: linear-gradient(135deg, #ffb547, #ff6a00); color: #fff; transform: translateY(-1px); }
+#resultHint { font-size: 10.5px; color: var(--muted); margin-top: 10px; }
+#result.noout #resultActions, #result.noout #resultHint, #result.error #resultHint, #result.error #btnOpen { display: none; }
+
+/* Mandalina patlaması */
+#burst { position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; }
+#burst i { position: absolute; width: 10px; height: 10px; margin: -5px; border-radius: 50%; background: linear-gradient(135deg, #ffc15a, #ff6a00); animation: fly 700ms var(--ease-out) forwards; }
+#burst i.leaf { background: #3dbe6b; border-radius: 0 60% 0 60%; }
+@keyframes fly {
+  from { transform: translate(0, 0) scale(1); opacity: 1; }
+  to { transform: translate(var(--x), var(--y)) scale(0.2); opacity: 0; }
+}
+
+/* Kapanış */
+#stage.closing #segments, #stage.closing #center, #stage.closing #result { opacity: 0; transform: scale(0.85); transition: all 180ms ease-in; }
+#stage.closing #segments { transform-origin: 240px 240px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+}
