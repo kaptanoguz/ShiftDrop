@@ -1,27 +1,29 @@
 # ShiftDrop
 
-Linux ve Windows için [Tangerine](https://tangerineformac.com/) tarzı bir dönüştürücü. Bir dosyayı sürüklemeye başla, bir tuşa dokun: imlecin etrafında bir çark açılır, dosyayı istediğin dilime bırakırsın. Her şey bilgisayarında çalışır, hiçbir dosya bir yere yüklenmez.
+A [Tangerine](https://tangerineformac.com/)-style file converter for Linux and Windows. Start dragging a file and tap a key: a wheel opens around your cursor, and you drop the file onto the slice you want. Everything runs on your computer, and no file is ever uploaded anywhere.
 
-| Sürüklerken dokun | Çark | Örnekler |
+| Tap while dragging | Wheel | Examples |
 |---|---|---|
-| **Shift** | Dönüştür | PNG, JPG, WebP, AVIF, PDF, MP4, WebM, GIF, MP3, DOCX, XLSX… |
-| **Ctrl** | Araçlar | Sıkıştır, yarıya indir, döndür, kare kırp, sessize al, 2× hız, böl, birleştir, ZIP |
-| **Alt** | Eylemler | Yüzdür, panoya kopyala, taşı, çoğalt, yolu kopyala, terminal, göster, çöpe at |
+| **Shift** | Convert | PNG, JPG, WebP, AVIF, PDF, MP4, WebM, GIF, MP3, DOCX, XLSX… |
+| **Ctrl** | Tools | Compress, halve, rotate, square crop, mute, 2× speed, split, merge, ZIP |
+| **Alt** | Actions | Float, copy to clipboard, move, duplicate, copy path, terminal, reveal, move to trash |
 
-Tuşu basılı tutman gerekmez: dokunup bırakınca çark açık kalır, dosyayı bırakana ya da **Esc**'ye basana kadar durur. Çark açıkken başka bir tuşa dokunarak çarklar arasında geçebilirsin. Merkeze bırakmak vazgeçmek demektir. Sekizden fazla seçenek varsa **Diğer** dilimi üzerinde biraz bekle ya da fare tekerleğini çevir.
+You don't need to hold the key. Tap it and the wheel stays open until you drop the file or press **Esc**. While the wheel is open, tap another key to switch wheels. Dropping on the centre cancels. When there are more than eight options, hover over the **Diğer** (More) slice for a moment or turn the mouse wheel.
 
-Dönüşüm bitince çarkın ortasında bir sonuç kartı belirir. Kartı doğrudan başka bir pencereye sürükleyebilir, **Klasörde göster** ya da **Aç** diyebilirsin. Çıktılar her zaman kaynak dosyanın yanına yazılır, hiçbir şeyin üzerine yazılmaz (`foto (1).webp` gibi).
+When a job finishes, a result card appears in the middle of the wheel. You can drag the card straight into another window, or click **Klasörde göster** (Show in folder) or **Aç** (Open). Output is always written next to the source file and never overwrites anything (e.g. `photo (1).webp`).
 
-## Kurulum
+> The app's interface is in Turkish.
 
-Hazır kurulum dosyaları [Releases](https://github.com/kaptanoguz/ShiftDrop/releases) sayfasında. `main` dalına her kod gönderiminde GitHub Actions bunları yeniden derleyip `package.json`'daki sürüm numarasıyla oraya ekler.
+## Installation
+
+Ready-made installers are on the [Releases](https://github.com/kaptanoguz/ShiftDrop/releases) page. On every push to `main`, GitHub Actions rebuilds them and publishes them under the version number in `package.json`.
 
 ### Windows
 
-- **ShiftDrop-Kurulum-1.0.0.exe**: Kurulum sihirbazı. Masaüstü ve Başlat menüsü kısayolu oluşturur, yönetici izni istemez.
-- **ShiftDrop-Tasinabilir-1.0.0.exe**: Kurulum gerektirmez, çift tıklayınca çalışır.
+- **ShiftDrop-Kurulum-1.0.0.exe**: Installer. Creates desktop and Start menu shortcuts and doesn't need admin rights.
+- **ShiftDrop-Tasinabilir-1.0.0.exe**: Portable version. No installation needed; double-click to run.
 
-Uygulama imzasız olduğu için ilk açılışta SmartScreen "Windows bilgisayarınızı korudu" uyarısı çıkabilir. **Ek bilgi → Yine de çalıştır** ile açabilirsin. ShiftDrop görev çubuğunun sağındaki simge alanında çalışır, menüsü oradan açılır.
+The app is unsigned, so SmartScreen may show "Windows protected your PC" the first time you open it. Click **More info → Run anyway**. ShiftDrop runs in the notification area on the right side of the taskbar, and its menu is there.
 
 ### Linux (AppImage)
 
@@ -30,57 +32,57 @@ chmod +x ShiftDrop-1.0.0.AppImage
 ./ShiftDrop-1.0.0.AppImage
 ```
 
-### Kaynaktan
+### From source
 
-Node.js 20 veya üstü gerekir.
+Requires Node.js 20 or newer.
 
 ```bash
-unzip shiftdrop-kaynak.zip && cd shiftdrop
+git clone https://github.com/kaptanoguz/ShiftDrop.git && cd ShiftDrop
 npm install
-npm start          # çalıştır
-npm test           # motoru Electron olmadan dener
-npm run dist:linux # dist/ altına AppImage üretir
-npm run dist:win   # Windows kurulum ve taşınabilir exe (Linux'ta wine gerekir)
+npm start          # run the app
+npm test           # test the conversion engine without Electron
+npm run dist:linux # build an AppImage into dist/
+npm run dist:win   # build the Windows installer and portable exe (needs wine on Linux)
 ```
 
-### İsteğe bağlı sistem araçları
+### Optional system tools
 
-Görsel, video, ses, altyazı ve ZIP işlemleri kutudan çıktığı gibi çalışır (ffmpeg uygulamayla gelir). Şunlar ise sistemde kuruluysa açılır.
+Image, video, audio, subtitle and ZIP jobs work out of the box, because ffmpeg ships with the app. The jobs below are enabled when these tools are installed.
 
-Windows'ta [LibreOffice](https://www.libreoffice.org/download/) ve [7-Zip](https://www.7-zip.org/) normal kurulumla yeterli; poppler ve Ghostscript için `bin` klasörlerini PATH'e eklemen gerekir. Linux'ta:
+On Windows, a normal install of [LibreOffice](https://www.libreoffice.org/download/) and [7-Zip](https://www.7-zip.org/) is enough. For poppler and Ghostscript, add their `bin` folders to PATH. On Linux:
 
 ```bash
 sudo apt install libreoffice poppler-utils ghostscript p7zip-full
 ```
 
-- **LibreOffice**: Word, ODT, RTF, EPUB, sunum ve tablo dönüşümleri, PDF'ten DOCX'e
-- **poppler-utils**: PDF'ten 300 DPI PNG/JPG ve metin, kapak sayfası
-- **ghostscript**: PDF sıkıştırma
-- **p7zip**: RAR ve 7z açma
+- **LibreOffice**: Word, ODT, RTF, EPUB, presentation and spreadsheet conversions, and PDF to DOCX
+- **poppler-utils**: PDF to 300 DPI PNG/JPG and text, and the cover page
+- **ghostscript**: PDF compression
+- **p7zip**: Extracting RAR and 7z
 
 ## Windows
 
-Sürüklerken basılan tuşlar sistem genelinde algılanır, ek izin gerekmez. Shift, Ctrl ve Alt Gezgin'de bırakma davranışını değiştirse de ShiftDrop dosyayı her zaman kopyalama olarak alır ve kaynağa dokunmaz. **Kopyala** eylemi dosyaları Gezgin'de Ctrl+V ile yapıştırılabilecek şekilde panoya koyar, **Terminal** varsa Windows Terminal'i açar. Oturum açılınca başlatma tepsi menüsünden açılır.
+Keys pressed while dragging are detected system-wide, with no extra permissions. Shift, Ctrl and Alt change Explorer's drop behaviour, but ShiftDrop always takes the file as a copy and never touches the source. The **Copy** action puts files on the clipboard so you can paste them in Explorer with Ctrl+V. **Terminal** opens Windows Terminal if it's installed. You can turn on start-at-login from the tray menu.
 
-## X11 ve Wayland
+## X11 and Wayland
 
-- **X11**: Sürüklerken basılan tuşlar sistem genelinde algılanır, çark imlecin olduğu yerde açılır.
-- **Wayland**: Wayland güvenlik gereği diğer uygulamalardaki tuşları dinlemeye izin vermez. Bu yüzden ekranın sağ kenarında küçük bir **mandalina balonu** görünür. Dosyayı balonun üzerine sürükle, çark orada açılır. Çark açıkken Shift, Ctrl ve Alt yine çalışır, çünkü imleç artık ShiftDrop'un üzerindedir. Balonu kenar boyunca yukarı aşağı taşıyabilirsin.
+- **X11**: Keys pressed while dragging are detected system-wide, and the wheel opens at your cursor.
+- **Wayland**: For security, Wayland doesn't let apps listen to keys pressed in other apps. To work around this, a small **tangerine bubble** sits on the right edge of the screen. Drag a file onto the bubble and the wheel opens there. Shift, Ctrl and Alt still work once the wheel is open, because the cursor is now over ShiftDrop. You can drag the bubble up and down along the edge.
 
-Balonu X11'de de tepsi menüsünden açabilirsin. Tepsi menüsünden tuş atamaları değiştirilebilir ve uygulamanın oturum açılınca başlaması sağlanabilir. Yedek kısayol: **Ctrl+Alt+Boşluk**, çarkı imlecin altında açar; dosyayı sonra üzerine bırakıp dilime tıklarsın.
+On X11 you can also turn the bubble on from the tray menu. The tray menu also lets you change key bindings and start the app at login. Fallback shortcut: **Ctrl+Alt+Space** opens the wheel under the cursor. Drop a file onto it, then click a slice.
 
-## Bilinen sınırlar
+## Known limitations
 
-- Uygulama Wayland'de de XWayland üzerinden çalışır, çünkü pencereyi imlecin yanına konumlandırmanın tek yolu bu.
-- HEIC kodlaması yok (okuması sistemdeki kütüphanelere bağlı); Pages ve Keynote dosyaları desteklenmiyor.
-- Kırpma ve kesme aralığı seçme gibi ayar isteyen araçlar yok; "Böl" dosyayı ortadan ikiye ayırır.
+- On Wayland the app runs through XWayland, because that's the only way to position a window next to the cursor.
+- No HEIC encoding (decoding depends on system libraries). Pages and Keynote files aren't supported.
+- Tools that need settings, such as choosing a crop or trim range, aren't available. **Split** cuts a file in half.
 
-## Proje yapısı
+## Project structure
 
 ```
-src/main.js         Ana süreç: genel tuş dinleme, pencereler, tepsi, dosya eylemleri
-src/engine.js       Dönüşüm ve araç motoru (Electron'dan bağımsız)
-src/preload.js      Arayüzle ana süreç arasındaki köprü
-src/renderer/       Çark, kenar balonu ve yüzen dosya penceresi
-scripts/            Duman testi ve ekran görüntüsü betiği
+src/main.js         Main process: global key hooks, windows, tray, file actions
+src/engine.js       Conversion and tools engine (independent of Electron)
+src/preload.js      Bridge between the UI and the main process
+src/renderer/       Wheel, edge bubble and floating file window
+scripts/            Smoke test and screenshot script
 ```
