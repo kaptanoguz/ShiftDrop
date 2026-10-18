@@ -18,12 +18,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            cmd: npm run dist:linux -- --publish never
-            files: dist/*.AppImage
-          - os: windows-latest
-            cmd: npm run dist:win -- --publish never
-            files: dist/ShiftDrop-*.exe
+          - { os: ubuntu-latest, lang: tr, cmd: npm run dist:linux, files: dist/*.AppImage }
+          - { os: ubuntu-latest, lang: en, cmd: npm run dist:linux:en, files: dist/*.AppImage }
+          - { os: windows-latest, lang: tr, cmd: npm run dist:win, files: dist/ShiftDrop-*.exe }
+          - { os: windows-latest, lang: en, cmd: npm run dist:win:en, files: dist/ShiftDrop-*.exe }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -33,11 +31,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.lang == 'tr'
       - run: ${{ matrix.cmd }}
       - uses: actions/upload-artifact@v4
         with:
-          name: shiftdrop-${{ runner.os }}
+          name: shiftdrop-${{ runner.os }}-${{ matrix.lang }}
           path: ${{ matrix.files }}
           if-no-files-found: error
 
@@ -60,5 +58,11 @@ jobs:
           make_latest: true
           files: out/*
           body: |
-            **Windows:** `ShiftDrop-Kurulum-*.exe` (kurulum) veya `ShiftDrop-Tasinabilir-*.exe` (kurulumsuz).
-            **Linux:** `ShiftDrop-*.AppImage` dosyasını indir, `chmod +x` ile çalıştırılabilir yap ve aç.
+            | | English | Türkçe |
+            |---|---|---|
+            | **Windows installer** | `ShiftDrop-Setup-*.exe` | `ShiftDrop-Kurulum-*.exe` |
+            | **Windows portable** | `ShiftDrop-Portable-*.exe` | `ShiftDrop-Tasinabilir-*.exe` |
+            | **Linux** | `ShiftDrop-*-EN.AppImage` | `ShiftDrop-*-TR.AppImage` |
+
+            The language only sets the default; you can switch it any time from the tray menu (Language / Dil).
+            Linux: `chmod +x ShiftDrop-*.AppImage` and run it.

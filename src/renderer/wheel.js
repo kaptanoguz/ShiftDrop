@@ -11,8 +11,9 @@ const INSET = 6;        // yuvarlak köşe için içeri çekme (stroke-width / 2
 const PAGE = 8;
 const NS = 'http://www.w3.org/2000/svg';
 
-const MODE_NAME = { convert: 'Dönüştür', tools: 'Araçlar', actions: 'Eylemler' };
-const MODE_VERB = { convert: 'Dönüştürülüyor', tools: 'İşleniyor', actions: 'Yapılıyor' };
+const t = api.t;
+const MODE_NAME = { convert: t('Dönüştür'), tools: t('Araçlar'), actions: t('Eylemler') };
+const MODE_VERB = { convert: t('Dönüştürülüyor'), tools: t('İşleniyor'), actions: t('Yapılıyor') };
 const MOD_FLAG = { Shift: 'shiftKey', Ctrl: 'ctrlKey', Alt: 'altKey', Super: 'metaKey' };
 
 const st = {
@@ -90,7 +91,7 @@ function visibleItems() {
   const per = PAGE - 1;
   const pages = Math.ceil(items.length / per);
   const page = st.page % pages;
-  return [...items.slice(page * per, page * per + per), { id: '__more', label: 'Diğer', hint: `${page + 1}/${pages}`, icon: 'more', more: true }];
+  return [...items.slice(page * per, page * per + per), { id: '__more', label: t('Diğer'), hint: `${page + 1}/${pages}`, icon: 'more', more: true }];
 }
 
 function hitTest(x, y) {
@@ -166,14 +167,14 @@ function text(parent, str, x, y, cls) {
 function renderModes() {
   $('modes').innerHTML = Object.keys(MODE_NAME)
     .map((m) => `<span class="mode${m === st.mode ? ' active' : ''}"><kbd>${st.keys[m]}</kbd></span>`).join('');
-  $('title').textContent = st.data && !st.data.items.length && st.phase !== 'pick' ? 'Bırak' : MODE_NAME[st.mode];
+  $('title').textContent = st.data && !st.data.items.length && st.phase !== 'pick' ? t('Bırak') : MODE_NAME[st.mode];
   const cat = st.data?.cat || 'other';
   const icon = $('catIcon');
   if (!st.data) { icon.className = 'logo'; icon.innerHTML = window.TANGERINE; } else { icon.className = ''; icon.innerHTML = window.icon(cat, 30); }
   let sub;
-  if (st.phase === 'pick' && !st.paths) sub = 'Dosyayı buraya bırak';
-  else if (!st.data) sub = 'Dosya bekleniyor';
-  else if (!st.data.items.length) sub = st.paths ? 'Bu tür için seçenek yok' : 'sonra seç';
+  if (st.phase === 'pick' && !st.paths) sub = t('Dosyayı buraya bırak');
+  else if (!st.data) sub = t('Dosya bekleniyor');
+  else if (!st.data.items.length) sub = t(st.paths ? 'Bu tür için seçenek yok' : 'sonra seç');
   else if (st.paths && st.paths.length === 1) sub = st.paths[0].split(/[\\/]/).pop();
   else sub = st.data.title;
   $('subtitle').textContent = sub;
@@ -392,20 +393,20 @@ function showResult(results, item) {
   if (!ok.length) {
     card.classList.add('error');
     $('resultIcon').innerHTML = window.icon('x', 28);
-    $('resultName').textContent = 'Olmadı';
-    $('resultMeta').textContent = fails[0]?.error || 'Bilinmeyen hata';
-    $('btnReveal').textContent = 'Kaynağı göster';
+    $('resultName').textContent = t('Olmadı');
+    $('resultMeta').textContent = fails[0]?.error || t('Bilinmeyen hata');
+    $('btnReveal').textContent = t('Kaynağı göster');
     st.result = st.paths[0];
   } else {
     $('resultIcon').innerHTML = window.icon('check', 28);
-    $('btnReveal').textContent = 'Klasörde göster';
+    $('btnReveal').textContent = t('Klasörde göster');
     if (!outs.length) {
       card.classList.add('noout');
-      $('resultName').textContent = ok[0].note || 'Tamam';
-      $('resultMeta').textContent = st.paths.length > 1 ? `${st.paths.length} dosya` : fileName(st.paths[0]);
+      $('resultName').textContent = ok[0].note || t('Tamam');
+      $('resultMeta').textContent = st.paths.length > 1 ? t('{n} dosya', { n: st.paths.length }) : fileName(st.paths[0]);
     } else {
-      $('resultName').textContent = outs.length > 1 ? `${outs.length} dosya hazır` : fileName(outs[0]);
-      const extra = fails.length ? ` · ${fails.length} hata: ${fails[0].error}` : '';
+      $('resultName').textContent = outs.length > 1 ? t('{n} dosya hazır', { n: outs.length }) : fileName(outs[0]);
+      const extra = fails.length ? ` · ${t('{n} hata', { n: fails.length })}: ${fails[0].error}` : '';
       $('resultMeta').textContent = (outs.length > 1 ? fileName(outs[0]) + ' …' : item.label + (item.hint ? ` · ${item.hint}` : '')) + extra;
     }
     burst();
@@ -442,3 +443,7 @@ function burst() {
     b.appendChild(el);
   }
 }
+
+// Sabit HTML metinlerini çevir
+document.documentElement.lang = api.lang;
+for (const id of ['btnOpen', 'resultHint']) $(id).textContent = t($(id).textContent);

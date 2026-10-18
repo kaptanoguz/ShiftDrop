@@ -5,6 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const { spawn } = require('child_process');
 const { pathToFileURL } = require('url');
+const { t } = require('./i18n');
 
 const IS_WIN = process.platform === 'win32';
 
@@ -49,7 +50,7 @@ function run(cmd, args, { onStderr, timeout = 0, cwd } = {}) {
     proc.on('close', (code) => {
       clearTimeout(timer);
       if (code === 0) resolve(out);
-      else reject(new Error(err.trim().split('\n').pop() || `${path.basename(cmd)} çıkış kodu ${code}`));
+      else reject(new Error(err.trim().split('\n').pop() || t('{tool} çıkış kodu {code}', { tool: path.basename(cmd), code })));
     });
   });
 }
@@ -157,21 +158,23 @@ function optionsFor(paths, mode) {
   const cats = [...new Set(paths.map(categoryOf))];
   const cat = cats.length === 1 ? cats[0] : 'mixed';
   const ext = paths.length === 1 ? norm(extOf(paths[0])) : null;
-  const title = paths.length > 1 ? `${paths.length} ${CAT_TITLE[cat] === 'Dosyalar' ? 'dosya' : CAT_TITLE[cat].toLowerCase()}` : CAT_TITLE[cat];
+  const title = paths.length > 1
+    ? t(`{n} ${cat === 'mixed' || cat === 'other' ? 'dosya' : CAT_TITLE[cat].toLocaleLowerCase('tr')}`, { n: paths.length })
+    : t(CAT_TITLE[cat]);
 
   if (mode === 'convert') {
-    const list = (CONVERT_TARGETS[cat] || []).filter(([t]) => t !== ext);
-    const items = list.map(([t, hint]) => ({
-      id: t, label: t === 'extract' ? 'Aç' : t.toUpperCase(), hint, icon: t === 'extract' ? 'unzip' : null,
+    const list = (CONVERT_TARGETS[cat] || []).filter(([id]) => id !== ext);
+    const items = list.map(([id, hint]) => ({
+      id, label: id === 'extract' ? t('Aç') : id.toUpperCase(), hint: t(hint), icon: id === 'extract' ? 'unzip' : null,
     }));
     return { title, cat, items };
   }
 
   if (mode === 'tools') {
-    const items = (TOOLS[cat] || []).map(([id, label, hint, icon]) => ({ id, label, hint, icon }));
+    const items = (TOOLS[cat] || []).map(([id, label, hint, icon]) => ({ id, label: t(label), hint: t(hint), icon }));
     const mergeable = paths.length > 1 && ['pdf', 'image', 'video', 'audio'].includes(cat);
-    if (mergeable) items.unshift({ id: 'merge', label: 'Birleştir', hint: cat === 'image' ? 'Tek PDF' : 'Tek dosya', icon: 'merge' });
-    items.push({ id: 'zip', label: 'ZIP', hint: 'Arşivle', icon: 'zip' });
+    if (mergeable) items.unshift({ id: 'merge', label: t('Birleştir'), hint: t(cat === 'image' ? 'Tek PDF' : 'Tek dosya'), icon: 'merge' });
+    items.push({ id: 'zip', label: 'ZIP', hint: t('Arşivle'), icon: 'zip' });
     return { title, cat, items: items.slice(0, 16) };
   }
 
@@ -179,14 +182,14 @@ function optionsFor(paths, mode) {
   return {
     title, cat,
     items: [
-      { id: 'float', label: 'Yüzdür', hint: 'Üstte tut', icon: 'float' },
-      { id: 'copy', label: 'Kopyala', hint: 'Panoya', icon: 'copy' },
-      { id: 'move', label: 'Taşı…', hint: 'Klasöre', icon: 'move' },
-      { id: 'duplicate', label: 'Çoğalt…', hint: 'Kopyasını koy', icon: 'duplicate' },
-      { id: 'path', label: 'Yolu kopyala', hint: 'Metin', icon: 'link' },
-      { id: 'terminal', label: 'Terminal', hint: 'Bu klasörde', icon: 'terminal' },
-      { id: 'reveal', label: 'Göster', hint: 'Dosya yöneticisi', icon: 'folder' },
-      { id: 'trash', label: 'Çöpe at', hint: 'Geri alınabilir', icon: 'trash' },
+      { id: 'float', label: t('Yüzdür'), hint: t('Üstte tut'), icon: 'float' },
+      { id: 'copy', label: t('Kopyala'), hint: t('Panoya'), icon: 'copy' },
+      { id: 'move', label: t('Taşı…'), hint: t('Klasöre'), icon: 'move' },
+      { id: 'duplicate', label: t('Çoğalt…'), hint: t('Kopyasını koy'), icon: 'duplicate' },
+      { id: 'path', label: t('Yolu kopyala'), hint: t('Metin'), icon: 'link' },
+      { id: 'terminal', label: t('Terminal'), hint: t('Bu klasörde'), icon: 'terminal' },
+      { id: 'reveal', label: t('Göster'), hint: t('Dosya yöneticisi'), icon: 'folder' },
+      { id: 'trash', label: t('Çöpe at'), hint: t('Geri alınabilir'), icon: 'trash' },
     ],
   };
 }
@@ -230,9 +233,9 @@ async function imagesToPdf(srcs, dir, base) {
 async function imageTool(src, tool, dir, base) {
   const ext = norm(extOf(src));
   const keepExt = ['png', 'jpg', 'webp', 'avif', 'tiff', 'gif'].includes(ext) ? ext : 'png';
-  const suffix = { compress: 'sikistirilmis', half: 'yarim', fit1080: '1080', rotate: 'dondurulmus', flip: 'aynali', square: 'kare', gray: 'gri', strip: 'temiz' }[tool];
+  const suffix = t({ compress: 'sikistirilmis', half: 'yarim', fit1080: '1080', rotate: 'dondurulmus', flip: 'aynali', square: 'kare', gray: 'gri', strip: 'temiz' }[tool]);
   const out = uniquePath(dir, `${base}-${suffix}`, keepExt);
-  if (!sharp) throw new Error('Görsel araçları için sharp gerekli');
+  if (!sharp) throw new Error(t('Görsel araçları için sharp gerekli'));
   const meta = await sharp(src).metadata();
   let img = sharp(src).rotate();
   switch (tool) {
@@ -290,7 +293,7 @@ async function audioConvert(src, to, dir, base, onProgress) {
 
 async function splitMedia(src, dir, base, isVideo, onProgress) {
   const dur = await mediaDuration(src);
-  if (!dur) throw new Error('Süre okunamadı');
+  if (!dur) throw new Error(t('Süre okunamadı'));
   const ext = isVideo ? 'mp4' : extOf(src);
   const half = dur / 2;
   const a = uniquePath(dir, `${base}-1`, ext);
@@ -303,7 +306,7 @@ async function splitMedia(src, dir, base, isVideo, onProgress) {
 async function videoTool(src, tool, dir, base, onProgress) {
   const h264 = ['-c:v', 'libx264', '-preset', 'medium', '-crf', '23', '-pix_fmt', 'yuv420p', '-movflags', '+faststart'];
   const outExt = 'mp4';
-  const name = (s) => uniquePath(dir, `${base}-${s}`, outExt);
+  const name = (s) => uniquePath(dir, `${base}-${t(s)}`, outExt);
   switch (tool) {
     case 'compress': { const o = name('sikistirilmis'); await ffmpeg(['-i', src, '-c:v', 'libx264', '-preset', 'slow', '-crf', '28', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', o], onProgress); return o; }
     case '720p': { const o = name('720p'); await ffmpeg(['-i', src, '-vf', 'scale=-2:720', ...h264, '-c:a', 'aac', '-b:a', '160k', o], onProgress); return o; }
@@ -312,15 +315,15 @@ async function videoTool(src, tool, dir, base, onProgress) {
     case 'speed2': { const o = name('2x'); await ffmpeg(['-i', src, '-filter_complex', '[0:v]setpts=0.5*PTS[v];[0:a]atempo=2.0[a]', '-map', '[v]', '-map', '[a]?', ...h264, '-c:a', 'aac', o], onProgress).catch(() => ffmpeg(['-i', src, '-vf', 'setpts=0.5*PTS', '-an', ...h264, o], onProgress)); return o; }
     case 'reverse': { const o = name('ters'); await ffmpeg(['-i', src, '-vf', 'reverse', '-af', 'areverse', ...h264, '-c:a', 'aac', o], onProgress).catch(() => ffmpeg(['-i', src, '-vf', 'reverse', '-an', ...h264, o], onProgress)); return o; }
     case 'split2': return splitMedia(src, dir, base, true, onProgress);
-    case 'thumb': { const dur = await mediaDuration(src); const o = uniquePath(dir, `${base}-kare`, 'png'); await ffmpeg(['-ss', `${dur / 2}`, '-i', src, '-frames:v', '1', o]); return o; }
-    default: throw new Error('Bilinmeyen araç');
+    case 'thumb': { const dur = await mediaDuration(src); const o = uniquePath(dir, `${base}-${t('karesi')}`, 'png'); await ffmpeg(['-ss', `${dur / 2}`, '-i', src, '-frames:v', '1', o]); return o; }
+    default: throw new Error(t('Bilinmeyen araç'));
   }
 }
 
 async function audioTool(src, tool, dir, base, onProgress) {
   const ext = ['mp3', 'm4a', 'wav', 'flac', 'ogg', 'opus'].includes(norm(extOf(src))) ? norm(extOf(src)) : 'mp3';
   const codec = AUDIO_TO[ext];
-  const name = (s, e = ext) => uniquePath(dir, `${base}-${s}`, e);
+  const name = (s, e = ext) => uniquePath(dir, `${base}-${t(s)}`, e);
   const af = (filter, s) => async () => { const o = name(s); await ffmpeg(['-i', src, '-vn', '-af', filter, ...codec, o], onProgress); return o; };
   switch (tool) {
     case 'compress': { const o = name('sikistirilmis', 'mp3'); await ffmpeg(['-i', src, '-vn', '-c:a', 'libmp3lame', '-b:a', '128k', o], onProgress); return o; }
@@ -331,12 +334,12 @@ async function audioTool(src, tool, dir, base, onProgress) {
     case 'reverse': return af('areverse', 'ters')();
     case 'fade': { const d = await mediaDuration(src); const f = Math.min(3, d / 4); return af(`afade=t=in:d=${f},afade=t=out:st=${Math.max(0, d - f)}:d=${f}`, 'fade')(); }
     case 'split2': return splitMedia(src, dir, base, false, onProgress);
-    default: throw new Error('Bilinmeyen araç');
+    default: throw new Error(t('Bilinmeyen araç'));
   }
 }
 
 async function concatMedia(srcs, dir, base, isVideo, onProgress) {
-  const out = uniquePath(dir, `${base}-birlesik`, isVideo ? 'mp4' : 'mp3');
+  const out = uniquePath(dir, `${base}-${t('birlesik')}`, isVideo ? 'mp4' : 'mp3');
   const inputs = srcs.flatMap((s) => ['-i', s]);
   if (isVideo) {
     // Farklı çözünürlükleri ilk videoya göre eşitle.
@@ -365,7 +368,7 @@ async function pdfToImages(src, to, dir, base) {
     } else if (soffice()) {
       // poppler yoksa yalnızca ilk sayfa LibreOffice ile alınabilir.
       await run(soffice(), ['--headless', '--convert-to', to, '--outdir', tmp, src], { timeout: 180000 });
-    } else throw new Error('PDF → görsel için poppler-utils (pdftoppm) gerekli');
+    } else throw new Error(t('PDF → görsel için poppler-utils (pdftoppm) gerekli'));
     const files = fs.readdirSync(tmp).sort();
     if (files.length === 1) {
       const out = uniquePath(dir, base, to);
@@ -392,14 +395,14 @@ async function pdfTool(paths, tool, dir, base) {
   switch (tool) {
     case 'compress': {
       const gs = which('gs') || which('gswin64c') || which('gswin32c');
-      if (!gs) throw new Error('PDF sıkıştırma için Ghostscript (gs) gerekli');
-      const out = uniquePath(dir, `${base}-sikistirilmis`, 'pdf');
+      if (!gs) throw new Error(t('PDF sıkıştırma için Ghostscript (gs) gerekli'));
+      const out = uniquePath(dir, `${base}-${t('sikistirilmis')}`, 'pdf');
       await run(gs, ['-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.5', '-dPDFSETTINGS=/ebook', '-dNOPAUSE', '-dQUIET', '-dBATCH', `-sOutputFile=${out}`, src]);
       return out;
     }
     case 'splitpages': {
       const doc = await load();
-      const folder = uniquePath(dir, `${base} (sayfalar)`, '');
+      const folder = uniquePath(dir, `${base} (${t('sayfalar')})`, '');
       fs.mkdirSync(folder);
       for (let i = 0; i < doc.getPageCount(); i++) {
         const one = await PDFDocument.create();
@@ -422,15 +425,15 @@ async function pdfTool(paths, tool, dir, base) {
         ['setTitle', 'setAuthor', 'setSubject', 'setCreator', 'setProducer'].forEach((m) => doc[m](''));
         doc.setKeywords([]);
       }
-      const suffix = { rotate: 'dondurulmus', reversepages: 'ters', strip: 'temiz' }[tool];
+      const suffix = t({ rotate: 'dondurulmus', reversepages: 'ters', strip: 'temiz' }[tool]);
       const out = uniquePath(dir, `${base}-${suffix}`, 'pdf');
       fs.writeFileSync(out, await target.save());
       return out;
     }
     case 'firstpage': {
       const pdftoppm = which('pdftoppm');
-      if (!pdftoppm) throw new Error('poppler-utils (pdftoppm) gerekli');
-      const out = uniquePath(dir, `${base}-kapak`, 'png');
+      if (!pdftoppm) throw new Error(t('poppler-utils (pdftoppm) gerekli'));
+      const out = uniquePath(dir, `${base}-${t('kapak')}`, 'png');
       await run(pdftoppm, ['-png', '-r', '200', '-f', '1', '-l', '1', '-singlefile', src, out.replace(/\.png$/, '')]);
       return out;
     }
@@ -440,11 +443,11 @@ async function pdfTool(paths, tool, dir, base) {
         const d = await PDFDocument.load(fs.readFileSync(p), { ignoreEncryption: true });
         (await merged.copyPages(d, d.getPageIndices())).forEach((pg) => merged.addPage(pg));
       }
-      const out = uniquePath(dir, `${base}-birlesik`, 'pdf');
+      const out = uniquePath(dir, `${base}-${t('birlesik')}`, 'pdf');
       fs.writeFileSync(out, await merged.save());
       return out;
     }
-    default: throw new Error('Bilinmeyen araç');
+    default: throw new Error(t('Bilinmeyen araç'));
   }
 }
 
@@ -460,14 +463,14 @@ const LO_FILTER = {
 
 async function officeConvert(src, to, dir, base, extra = []) {
   const lo = soffice();
-  if (!lo) throw new Error('Bu dönüşüm için LibreOffice gerekli (sudo apt install libreoffice)');
+  if (!lo) throw new Error(t('Bu dönüşüm için LibreOffice gerekli (sudo apt install libreoffice)'));
   const tmp = tmpDir();
   try {
     // Ayrı bir profil klasörü: açık bir LibreOffice penceresi olsa bile çakışmasın.
     const profile = `-env:UserInstallation=${pathToFileURL(path.join(os.tmpdir(), 'shiftdrop-lo-profile')).href}`;
     await run(lo, [profile, '--headless', ...extra, '--convert-to', LO_FILTER[to] || to, '--outdir', tmp, src], { timeout: 240000 });
     const produced = fs.readdirSync(tmp).filter((f) => !f.startsWith('.'));
-    if (!produced.length) throw new Error('LibreOffice çıktı üretmedi');
+    if (!produced.length) throw new Error(t('LibreOffice çıktı üretmedi'));
     const out = uniquePath(dir, base, to);
     fs.copyFileSync(path.join(tmp, produced[0]), out);
     return out;
@@ -586,12 +589,12 @@ async function extractArchive(src, dest) {
     } else await run(which('tar') || 'tar', ['-xf', src, '-C', dest]);
   } else if (ext === 'rar' || ext === '7z') {
     const tool = which('7z') || which('7zz') || which('unrar') || which('bsdtar') || (IS_WIN ? which('tar') : null);
-    if (!tool) throw new Error('RAR/7z için p7zip veya unrar gerekli');
+    if (!tool) throw new Error(t('RAR/7z için p7zip veya unrar gerekli'));
     const name = path.basename(tool).replace(/\.exe$/i, '').toLowerCase();
     if (name === 'unrar') await run(tool, ['x', '-o+', src, `${dest}${path.sep}`]);
     else if (name === 'bsdtar' || name === 'tar') await run(tool, ['-xf', src, '-C', dest]);
     else await run(tool, ['x', '-y', `-o${dest}`, src]);
-  } else throw new Error('Bilinmeyen arşiv türü');
+  } else throw new Error(t('Bilinmeyen arşiv türü'));
 }
 
 async function makeArchive(items, out, kind) {
@@ -641,7 +644,7 @@ async function convertOne(src, to, onProgress) {
     case 'sheet': return officeConvert(src, to, dir, base);
     case 'subtitle': return subtitleConvert(src, to, dir, base);
     case 'archive': return archiveConvert(src, to, dir, base);
-    default: throw new Error('Bu dosya türü desteklenmiyor');
+    default: throw new Error(t('Bu dosya türü desteklenmiyor'));
   }
 }
 
@@ -653,7 +656,7 @@ async function toolOne(src, tool, onProgress) {
     case 'video': return videoTool(src, tool, dir, base, onProgress);
     case 'audio': return audioTool(src, tool, dir, base, onProgress);
     case 'pdf': return pdfTool([src], tool, dir, base);
-    default: throw new Error('Bu dosya için araç yok');
+    default: throw new Error(t('Bu dosya için araç yok'));
   }
 }
 
@@ -669,11 +672,11 @@ async function perform(paths, mode, id, onProgress = () => {}) {
 
   // Birden çok dosyayı tek çıktıya indiren işlemler
   if (mode === 'tools' && id === 'zip') {
-    return single(() => makeArchive(paths, uniquePath(dir, paths.length === 1 ? base : 'Arsiv', 'zip'), 'zip'));
+    return single(() => makeArchive(paths, uniquePath(dir, paths.length === 1 ? base : t('Arsiv'), 'zip'), 'zip'));
   }
   if (mode === 'tools' && id === 'merge') {
     if (cat === 'pdf') return single(() => pdfTool(paths, 'merge', dir, base));
-    if (cat === 'image') return single(() => imagesToPdf(paths, dir, `${base}-birlesik`));
+    if (cat === 'image') return single(() => imagesToPdf(paths, dir, `${base}-${t('birlesik')}`));
     return single((p) => concatMedia(paths, dir, base, cat === 'video', p));
   }
   if (mode === 'convert' && id === 'pdf' && paths.length > 1 && paths.every((p) => categoryOf(p) === 'image')) {

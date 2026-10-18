@@ -3,6 +3,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
+require('../src/i18n').setLang(process.env.SHIFTDROP_LANG || 'tr');
 const { optionsFor, perform, FFMPEG, soffice } = require('../src/engine');
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shiftdrop-test-'));
@@ -34,7 +35,7 @@ const cases = [
   const run = async (files, mode, id) => {
     const res = await perform(files.map(f), mode, id);
     for (const r of res) {
-      if (r.ok && fs.existsSync(r.out)) { pass++; console.log(`  ok   ${mode}/${id}  ${path.basename(r.src)} → ${path.basename(r.out)}`); } else if (/gerekli/.test(r.error || '')) { skip++; console.log(`  skip ${mode}/${id}  ${r.error}`); } else { fail++; console.log(`  FAIL ${mode}/${id}  ${path.basename(r.src)}: ${r.error}`); }
+      if (r.ok && fs.existsSync(r.out)) { pass++; console.log(`  ok   ${mode}/${id}  ${path.basename(r.src)} → ${path.basename(r.out)}`); } else if (/gerekli|required/.test(r.error || '')) { skip++; console.log(`  skip ${mode}/${id}  ${r.error}`); } else { fail++; console.log(`  FAIL ${mode}/${id}  ${path.basename(r.src)}: ${r.error}`); }
     }
   };
   for (const [files, modes] of cases) {

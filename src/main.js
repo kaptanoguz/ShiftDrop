@@ -3,6 +3,9 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { optionsFor, perform } = require('./engine');
+const i18n = require('./i18n');
+const { t } = i18n;
+const pkg = require('../package.json');
 
 // Linux: Wayland pencerelerin konumlanmasına izin vermez, bu yüzden XWayland (X11) üzerinden çalışıyoruz.
 // Saydam pencereler için de bu bayrak gerekir.
@@ -20,7 +23,7 @@ const ASSETS = path.join(__dirname, '..', 'assets');
 let wheel = null;
 let bubble = null;
 let tray = null;
-let settings = { bubble: isWayland, bubbleY: 0.5, keys: { convert: 'Shift', tools: 'Ctrl', actions: 'Alt' } };
+let settings = { lang: null, bubble: isWayland, bubbleY: 0.5, keys: { convert: 'Shift', tools: 'Ctrl', actions: 'Alt' } };
 let busy = false;
 let hideTimer = null;
 const drag = { mouseDown: false, active: false, start: null };
@@ -170,13 +173,13 @@ function openTerminal(dir) {
   }
   const dirs = (process.env.PATH || '').split(':');
   const found = candidates.find(([c]) => dirs.some((d) => fs.existsSync(path.join(d, c))));
-  if (!found) throw new Error('Terminal bulunamadı');
+  if (!found) throw new Error(t('Terminal bulunamadı'));
   spawn(found[0], found[1], { cwd: dir, detached: true, stdio: 'ignore' }).unref();
 }
 
 function moveFile(src, destDir) {
   const dest = path.join(destDir, path.basename(src));
-  if (fs.existsSync(dest)) throw new Error(`${path.basename(src)} hedefte zaten var`);
+  if (fs.existsSync(dest)) throw new Error(t('{name} hedefte zaten var', { name: path.basename(src) }));
   try { fs.renameSync(src, dest); } catch (e) {
     if (e.code !== 'EXDEV') throw e;
     fs.cpSync(src, dest, { recursive: true });
@@ -189,7 +192,7 @@ function uniqueCopy(src, destDir) {
   const ext = path.extname(src);
   const base = path.basename(src, ext);
   let dest = path.join(destDir, path.basename(src));
-  for (let i = 1; fs.existsSync(dest); i++) dest = path.join(destDir, `${base} kopya${i > 1 ? ` ${i}` : ''}${ext}`);
+  for (let i = 1; fs.existsSync(dest); i++) dest = path.join(destDir, `${base} ${t('kopya')}${i > 1 ? ` ${i}` : ''}${ext}`);
   fs.cpSync(src, dest, { recursive: true });
   return dest;
 }
@@ -202,7 +205,7 @@ async function pickFolder(title) {
 async function runAction(paths, id) {
   const ok = (out, note) => ({ ok: true, src: paths[0], out, note });
   switch (id) {
-    case 'float': paths.forEach(openFloat); return [ok(null, 'Yüzdürüldü')];
+    case 'float': paths.forEach(openFloat); return [ok(null, t('Yüzdürüldü'))];
     case 'copy': {
       const uris = paths.map(fileUrl);
       if (process.platform === 'linux') {
@@ -215,23 +218,23 @@ async function runAction(paths, id) {
         await new Promise((resolve, reject) => {
           const ps = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `Set-Clipboard -Path ${list}`], { windowsHide: true });
           ps.on('error', reject);
-          ps.on('close', (code) => (code === 0 ? resolve() : reject(new Error('Panoya kopyalanamadı'))));
+          ps.on('close', (code) => (code === 0 ? resolve() : reject(new Error(t('Panoya kopyalanamadı')))));
         });
       } else clipboard.writeText(paths.join('\n'));
-      return [ok(null, 'Panoya kopyalandı')];
+      return [ok(null, t('Panoya kopyalandı'))];
     }
-    case 'path': clipboard.writeText(paths.join('\n')); return [ok(null, 'Yol kopyalandı')];
-    case 'terminal': openTerminal(fs.statSync(paths[0]).isDirectory() ? paths[0] : path.dirname(paths[0])); return [ok(null, 'Terminal açıldı')];
-    case 'reveal': shell.showItemInFolder(paths[0]); return [ok(null, 'Gösterildi')];
-    case 'trash': for (const p of paths) await shell.trashItem(p); return [ok(null, 'Çöpe atıldı')];
+    case 'path': clipboard.writeText(paths.join('\n')); return [ok(null, t('Yol kopyalandı'))];
+    case 'terminal': openTerminal(fs.statSync(paths[0]).isDirectory() ? paths[0] : path.dirname(paths[0])); return [ok(null, t('Terminal açıldı'))];
+    case 'reveal': shell.showItemInFolder(paths[0]); return [ok(null, t('Gösterildi'))];
+    case 'trash': for (const p of paths) await shell.trashItem(p); return [ok(null, t('Çöpe atıldı'))];
     case 'move': case 'duplicate': {
-      const dir = await pickFolder(id === 'move' ? 'Nereye taşınsın?' : 'Kopyası nereye konsun?');
-      if (!dir) return [{ ok: false, src: paths[0], error: 'Vazgeçildi', cancelled: true }];
+      const dir = await pickFolder(t(id === 'move' ? 'Nereye taşınsın?' : 'Kopyası nereye konsun?'));
+      if (!dir) return [{ ok: false, src: paths[0], error: t('Vazgeçildi'), cancelled: true }];
       return paths.map((p) => {
         try { return { ok: true, src: p, out: id === 'move' ? moveFile(p, dir) : uniqueCopy(p, dir) }; } catch (e) { return { ok: false, src: p, error: e.message }; }
       });
     }
-    default: throw new Error('Bilinmeyen eylem');
+    default: throw new Error(t('Bilinmeyen eylem'));
   }
 }
 
@@ -277,13 +280,19 @@ function buildTray() {
   });
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'ShiftDrop', enabled: false },
-    { label: hooksOk ? `Sürüklerken ${settings.keys.convert}: dönüştür · ${settings.keys.tools}: araçlar · ${settings.keys.actions}: eylemler` : 'Tuş algılama kapalı: kenar balonunu kullan', enabled: false },
+    { label: hooksOk ? t('Sürüklerken {c}: dönüştür · {t}: araçlar · {a}: eylemler', { c: settings.keys.convert, t: settings.keys.tools, a: settings.keys.actions }) : t('Tuş algılama kapalı: kenar balonunu kullan'), enabled: false },
     { type: 'separator' },
-    { label: 'Kenar balonu', type: 'checkbox', checked: settings.bubble, click: (i) => setBubble(i.checked) },
-    { label: 'Tuşlar', submenu: [keyItems('convert', 'Dönüştür'), keyItems('tools', 'Araçlar'), keyItems('actions', 'Eylemler')] },
-    { label: 'Oturum açılınca başlat', type: 'checkbox', checked: autostartEnabled(), click: (i) => setAutostart(i.checked) },
+    { label: t('Kenar balonu'), type: 'checkbox', checked: settings.bubble, click: (i) => setBubble(i.checked) },
+    { label: t('Tuşlar'), submenu: [keyItems('convert', t('Dönüştür')), keyItems('tools', t('Araçlar')), keyItems('actions', t('Eylemler'))] },
+    {
+      label: t('Dil'),
+      submenu: [['tr', 'Türkçe'], ['en', 'English']].map(([code, name]) => ({
+        label: name, type: 'radio', checked: i18n.getLang() === code, click: () => setLanguage(code),
+      })),
+    },
+    { label: t('Oturum açılınca başlat'), type: 'checkbox', checked: autostartEnabled(), click: (i) => setAutostart(i.checked) },
     { type: 'separator' },
-    { label: 'Çıkış', role: 'quit' },
+    { label: t('Çıkış'), role: 'quit' },
   ]));
 }
 
@@ -307,7 +316,26 @@ function setAutostart(on) {
   fs.writeFileSync(autostartFile(), `[Desktop Entry]\nType=Application\nName=ShiftDrop\nExec=${exec}\nX-GNOME-Autostart-enabled=true\n`);
 }
 
+// ---------- Dil ----------
+
+// Sıra: kullanıcının seçtiği dil, derlemenin varsayılanı (Türkçe/İngilizce sürüm), sistem dili.
+function initialLanguage() {
+  if (settings.lang) return settings.lang;
+  if (pkg.shiftdropLang) return pkg.shiftdropLang;
+  return app.getLocale().toLowerCase().startsWith('tr') ? 'tr' : 'en';
+}
+
+function setLanguage(code) {
+  settings.lang = code;
+  saveSettings();
+  i18n.setLang(code);
+  buildTray();
+  for (const w of [wheel, bubble, ...floats]) if (w && !w.isDestroyed()) w.webContents.reload();
+}
+
 // ---------- IPC ----------
+
+ipcMain.on('i18n', (e) => { e.returnValue = { lang: i18n.getLang(), dict: i18n.getLang() === 'en' ? i18n.EN : {} }; });
 
 ipcMain.handle('options', (_e, { paths, mode }) => optionsFor(paths, mode));
 ipcMain.on('busy', (_e, v) => { busy = v; if (!v) scheduleCloseCheck(900); });
@@ -352,6 +380,7 @@ if (IS_WIN) app.setAppUserModelId('app.shiftdrop');
 
 app.whenReady().then(() => {
   loadSettings();
+  i18n.setLang(initialLanguage());
   createWheel();
   createBubble();
   hooksOk = startHooks();

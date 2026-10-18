@@ -1,4 +1,5 @@
 const api = window.shiftdrop;
+document.getElementById('tab').title = api.t('Dosyayı buraya sürükle');
 document.getElementById('logo').innerHTML = window.TANGERINE;
 const modeFrom = (e) => (e.ctrlKey ? 'tools' : e.altKey ? 'actions' : 'convert');
 let sent = false;

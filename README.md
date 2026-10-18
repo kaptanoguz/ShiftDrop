@@ -8,11 +8,11 @@ A [Tangerine](https://tangerineformac.com/)-style file converter for Linux and W
 | **Ctrl** | Tools | Compress, halve, rotate, square crop, mute, 2× speed, split, merge, ZIP |
 | **Alt** | Actions | Float, copy to clipboard, move, duplicate, copy path, terminal, reveal, move to trash |
 
-You don't need to hold the key. Tap it and the wheel stays open until you drop the file or press **Esc**. While the wheel is open, tap another key to switch wheels. Dropping on the centre cancels. When there are more than eight options, hover over the **Diğer** (More) slice for a moment or turn the mouse wheel.
+You don't need to hold the key. Tap it and the wheel stays open until you drop the file or press **Esc**. While the wheel is open, tap another key to switch wheels. Dropping on the centre cancels. When there are more than eight options, hover over the **More** slice for a moment or turn the mouse wheel.
 
-When a job finishes, a result card appears in the middle of the wheel. You can drag the card straight into another window, or click **Klasörde göster** (Show in folder) or **Aç** (Open). Output is always written next to the source file and never overwrites anything (e.g. `photo (1).webp`).
+When a job finishes, a result card appears in the middle of the wheel. You can drag the card straight into another window, or click **Show in folder** or **Open**. Output is always written next to the source file and never overwrites anything (e.g. `photo (1).webp`).
 
-> The app's interface is in Turkish.
+> The interface is available in English and Turkish. It follows your system language by default, and you can switch it from the tray menu (**Language**).
 
 ## Installation
 
@@ -20,16 +20,23 @@ Ready-made installers are on the [Releases](https://github.com/kaptanoguz/ShiftD
 
 ### Windows
 
-- **ShiftDrop-Kurulum-1.0.0.exe**: Installer. Creates desktop and Start menu shortcuts and doesn't need admin rights.
-- **ShiftDrop-Tasinabilir-1.0.0.exe**: Portable version. No installation needed; double-click to run.
+Each build comes in English and Turkish. The language only sets the default; both builds contain both languages.
+
+| | English | Türkçe |
+|---|---|---|
+| Installer | `ShiftDrop-Setup-<version>.exe` | `ShiftDrop-Kurulum-<version>.exe` |
+| Portable | `ShiftDrop-Portable-<version>.exe` | `ShiftDrop-Tasinabilir-<version>.exe` |
+| Linux | `ShiftDrop-<version>-EN.AppImage` | `ShiftDrop-<version>-TR.AppImage` |
+
+The installer creates desktop and Start menu shortcuts and doesn't need admin rights. The portable version needs no installation; double-click to run.
 
 The app is unsigned, so SmartScreen may show "Windows protected your PC" the first time you open it. Click **More info → Run anyway**. ShiftDrop runs in the notification area on the right side of the taskbar, and its menu is there.
 
 ### Linux (AppImage)
 
 ```bash
-chmod +x ShiftDrop-1.0.0.AppImage
-./ShiftDrop-1.0.0.AppImage
+chmod +x ShiftDrop-*-EN.AppImage
+./ShiftDrop-*-EN.AppImage
 ```
 
 ### From source
@@ -41,8 +48,8 @@ git clone https://github.com/kaptanoguz/ShiftDrop.git && cd ShiftDrop
 npm install
 npm start          # run the app
 npm test           # test the conversion engine without Electron
-npm run dist:linux # build an AppImage into dist/
-npm run dist:win   # build the Windows installer and portable exe (needs wine on Linux)
+npm run dist:linux:en  # build an English AppImage into dist/ (dist:linux for Turkish)
+npm run dist:win:en    # build the English Windows installer and portable exe (dist:win for Turkish; needs wine on Linux)
 ```
 
 ### Optional system tools
@@ -62,7 +69,7 @@ sudo apt install libreoffice poppler-utils ghostscript p7zip-full
 
 ## Windows
 
-Keys pressed while dragging are detected system-wide, with no extra permissions. Shift, Ctrl and Alt change Explorer's drop behaviour, but ShiftDrop always takes the file as a copy and never touches the source. The **Copy** action puts files on the clipboard so you can paste them in Explorer with Ctrl+V. **Terminal** opens Windows Terminal if it's installed. You can turn on start-at-login from the tray menu.
+Keys pressed while dragging are detected system-wide, with no extra permissions. Shift, Ctrl and Alt change Explorer's drop behaviour, but ShiftDrop always takes the file as a copy and never touches the source. The **Copy** action puts files on the clipboard so you can paste them in Explorer with Ctrl+V. **Terminal** opens Windows Terminal if it's installed. You can turn on **Start at login** from the tray menu.
 
 ## X11 and Wayland
 
@@ -81,8 +88,9 @@ On X11 you can also turn the bubble on from the tray menu. The tray menu also le
 
 ```
 src/main.js         Main process: global key hooks, windows, tray, file actions
+src/i18n.js         English translations (the source strings are Turkish)
 src/engine.js       Conversion and tools engine (independent of Electron)
 src/preload.js      Bridge between the UI and the main process
 src/renderer/       Wheel, edge bubble and floating file window
-scripts/            Smoke test and screenshot script
+scripts/            Build, smoke test and screenshot scripts
 ```

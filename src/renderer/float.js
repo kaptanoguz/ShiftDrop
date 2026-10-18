@@ -1,4 +1,7 @@
 const api = window.shiftdrop;
+document.getElementById('preview').title = api.t('Sürükleyip istediğin yere bırak');
+document.getElementById('reveal').title = api.t('Klasörde göster');
+document.getElementById('close').title = api.t('Kapat');
 const file = new URLSearchParams(location.search).get('file');
 const name = file.split(/[\\/]/).pop();
 const ext = (name.split('.').pop() || '').toLowerCase();
