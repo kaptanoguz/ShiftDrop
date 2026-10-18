@@ -1,6 +1,6 @@
 # ShiftDrop
 
-Linux için [Tangerine](https://tangerineformac.com/) tarzı bir dönüştürücü. Bir dosyayı sürüklemeye başla, bir tuşa dokun: imlecin etrafında bir çark açılır, dosyayı istediğin dilime bırakırsın. Her şey bilgisayarında çalışır, hiçbir dosya bir yere yüklenmez.
+Linux ve Windows için [Tangerine](https://tangerineformac.com/) tarzı bir dönüştürücü. Bir dosyayı sürüklemeye başla, bir tuşa dokun: imlecin etrafında bir çark açılır, dosyayı istediğin dilime bırakırsın. Her şey bilgisayarında çalışır, hiçbir dosya bir yere yüklenmez.
 
 | Sürüklerken dokun | Çark | Örnekler |
 |---|---|---|
@@ -14,7 +14,14 @@ Dönüşüm bitince çarkın ortasında bir sonuç kartı belirir. Kartı doğru
 
 ## Kurulum
 
-### Hazır AppImage
+### Windows
+
+- **ShiftDrop-Kurulum-1.0.0.exe**: Kurulum sihirbazı. Masaüstü ve Başlat menüsü kısayolu oluşturur, yönetici izni istemez.
+- **ShiftDrop-Tasinabilir-1.0.0.exe**: Kurulum gerektirmez, çift tıklayınca çalışır.
+
+Uygulama imzasız olduğu için ilk açılışta SmartScreen "Windows bilgisayarınızı korudu" uyarısı çıkabilir. **Ek bilgi → Yine de çalıştır** ile açabilirsin. ShiftDrop görev çubuğunun sağındaki simge alanında çalışır, menüsü oradan açılır.
+
+### Linux (AppImage)
 
 ```bash
 chmod +x ShiftDrop-1.0.0.AppImage
@@ -30,12 +37,15 @@ unzip shiftdrop-kaynak.zip && cd shiftdrop
 npm install
 npm start          # çalıştır
 npm test           # motoru Electron olmadan dener
-npm run dist       # dist/ altına AppImage üretir
+npm run dist:linux # dist/ altına AppImage üretir
+npm run dist:win   # Windows kurulum ve taşınabilir exe (Linux'ta wine gerekir)
 ```
 
 ### İsteğe bağlı sistem araçları
 
-Görsel, video, ses, altyazı ve ZIP işlemleri kutudan çıktığı gibi çalışır (ffmpeg uygulamayla gelir). Şunlar ise sistemde kuruluysa açılır:
+Görsel, video, ses, altyazı ve ZIP işlemleri kutudan çıktığı gibi çalışır (ffmpeg uygulamayla gelir). Şunlar ise sistemde kuruluysa açılır.
+
+Windows'ta [LibreOffice](https://www.libreoffice.org/download/) ve [7-Zip](https://www.7-zip.org/) normal kurulumla yeterli; poppler ve Ghostscript için `bin` klasörlerini PATH'e eklemen gerekir. Linux'ta:
 
 ```bash
 sudo apt install libreoffice poppler-utils ghostscript p7zip-full
@@ -45,6 +55,10 @@ sudo apt install libreoffice poppler-utils ghostscript p7zip-full
 - **poppler-utils**: PDF'ten 300 DPI PNG/JPG ve metin, kapak sayfası
 - **ghostscript**: PDF sıkıştırma
 - **p7zip**: RAR ve 7z açma
+
+## Windows
+
+Sürüklerken basılan tuşlar sistem genelinde algılanır, ek izin gerekmez. Shift, Ctrl ve Alt Gezgin'de bırakma davranışını değiştirse de ShiftDrop dosyayı her zaman kopyalama olarak alır ve kaynağa dokunmaz. **Kopyala** eylemi dosyaları Gezgin'de Ctrl+V ile yapıştırılabilecek şekilde panoya koyar, **Terminal** varsa Windows Terminal'i açar. Oturum açılınca başlatma tepsi menüsünden açılır.
 
 ## X11 ve Wayland
 

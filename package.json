@@ -8,7 +8,9 @@
   "scripts": {
     "start": "electron .",
     "test": "node scripts/smoke-test.js",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "dist:linux": "electron-builder --linux AppImage --x64",
+    "dist:win": "electron-builder --win --x64"
   },
   "dependencies": {
     "ffmpeg-static": "^5.3.0",
@@ -44,7 +46,20 @@
       }
     },
     "win": {
-      "target": "nsis",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "assets/icon.png"
     },
     "linux": {
@@ -54,6 +69,17 @@
       "synopsis": "Shift ile sürükle, anında dönüştür"
     },
     "npmRebuild": false,
-    "publish": null
+    "publish": null,
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "shortcutName": "ShiftDrop",
+      "artifactName": "ShiftDrop-Kurulum-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "ShiftDrop-Tasinabilir-${version}.${ext}"
+    }
   }
 }

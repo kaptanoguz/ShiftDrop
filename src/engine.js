@@ -4,6 +4,9 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { spawn } = require('child_process');
+const { pathToFileURL } = require('url');
+
+const IS_WIN = process.platform === 'win32';
 
 // Paketlenmiş uygulamada ikili dosyalar app.asar.unpacked altındadır.
 const unpacked = (p) => (p ? p.replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`) : p);
@@ -18,7 +21,10 @@ const { PDFDocument, degrees } = require('pdf-lib');
 const whichCache = new Map();
 function which(cmd) {
   if (whichCache.has(cmd)) return whichCache.get(cmd);
-  const dirs = (process.env.PATH || '').split(path.delimiter).concat(['/usr/bin', '/usr/local/bin', '/snap/bin', '/opt/libreoffice/program']);
+  const extra = IS_WIN
+    ? ['C:\\Program Files\\7-Zip', 'C:\\Program Files\\LibreOffice\\program', path.join(process.env.SystemRoot || 'C:\\Windows', 'System32')]
+    : ['/usr/bin', '/usr/local/bin', '/snap/bin', '/opt/libreoffice/program'];
+  const dirs = (process.env.PATH || '').split(path.delimiter).filter(Boolean).concat(extra);
   const exts = process.platform === 'win32' ? ['.exe', '.cmd', ''] : [''];
   let found = null;
   for (const d of dirs) for (const e of exts) {
@@ -385,7 +391,7 @@ async function pdfTool(paths, tool, dir, base) {
   const load = async () => PDFDocument.load(fs.readFileSync(src), { ignoreEncryption: true });
   switch (tool) {
     case 'compress': {
-      const gs = which('gs');
+      const gs = which('gs') || which('gswin64c') || which('gswin32c');
       if (!gs) throw new Error('PDF sıkıştırma için Ghostscript (gs) gerekli');
       const out = uniquePath(dir, `${base}-sikistirilmis`, 'pdf');
       await run(gs, ['-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.5', '-dPDFSETTINGS=/ebook', '-dNOPAUSE', '-dQUIET', '-dBATCH', `-sOutputFile=${out}`, src]);
@@ -458,7 +464,7 @@ async function officeConvert(src, to, dir, base, extra = []) {
   const tmp = tmpDir();
   try {
     // Ayrı bir profil klasörü: açık bir LibreOffice penceresi olsa bile çakışmasın.
-    const profile = `-env:UserInstallation=file://${path.join(os.tmpdir(), 'shiftdrop-lo-profile').replace(/\\/g, '/')}`;
+    const profile = `-env:UserInstallation=${pathToFileURL(path.join(os.tmpdir(), 'shiftdrop-lo-profile')).href}`;
     await run(lo, [profile, '--headless', ...extra, '--convert-to', LO_FILTER[to] || to, '--outdir', tmp, src], { timeout: 240000 });
     const produced = fs.readdirSync(tmp).filter((f) => !f.startsWith('.'));
     if (!produced.length) throw new Error('LibreOffice çıktı üretmedi');
@@ -559,23 +565,31 @@ async function subtitleConvert(src, to, dir, base) {
 
 // ---------- Arşivler ----------
 
+// tar.exe olmayan eski Windows sürümleri için yedek
+const psq = (p) => `'${p.replace(/'/g, "''")}'`;
+const powershell = (cmd) => run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', cmd]);
+
 async function extractArchive(src, dest) {
   fs.mkdirSync(dest, { recursive: true });
   const ext = extOf(src);
   if (ext === 'zip') {
-    if (which('unzip')) await run(which('unzip'), ['-q', '-o', src, '-d', dest]);
+    // Windows 10+ ile gelen tar (libarchive) zip de açar.
+    if (IS_WIN && which('tar')) await run(which('tar'), ['-xf', src, '-C', dest]);
+    else if (IS_WIN) await powershell(`Expand-Archive -LiteralPath ${psq(src)} -DestinationPath ${psq(dest)} -Force`);
+    else if (which('unzip')) await run(which('unzip'), ['-q', '-o', src, '-d', dest]);
     else await run(which('python3') || 'python3', ['-m', 'zipfile', '-e', src, dest]);
   } else if (['tar', 'gz', 'tgz', 'tar.gz'].includes(ext)) {
     if (ext === 'gz' && !/\.tar\.gz$/i.test(src)) {
       // Tek dosyalık .gz
       const out = path.join(dest, path.basename(src).replace(/\.gz$/i, ''));
       await new Promise((res, rej) => fs.createReadStream(src).pipe(require('zlib').createGunzip()).pipe(fs.createWriteStream(out)).on('finish', res).on('error', rej));
-    } else await run('tar', ['-xf', src, '-C', dest]);
+    } else await run(which('tar') || 'tar', ['-xf', src, '-C', dest]);
   } else if (ext === 'rar' || ext === '7z') {
-    const tool = which('7z') || which('7zz') || which('unrar') || which('bsdtar');
+    const tool = which('7z') || which('7zz') || which('unrar') || which('bsdtar') || (IS_WIN ? which('tar') : null);
     if (!tool) throw new Error('RAR/7z için p7zip veya unrar gerekli');
-    if (/unrar$/.test(tool)) await run(tool, ['x', '-o+', src, `${dest}${path.sep}`]);
-    else if (/bsdtar$/.test(tool)) await run(tool, ['-xf', src, '-C', dest]);
+    const name = path.basename(tool).replace(/\.exe$/i, '').toLowerCase();
+    if (name === 'unrar') await run(tool, ['x', '-o+', src, `${dest}${path.sep}`]);
+    else if (name === 'bsdtar' || name === 'tar') await run(tool, ['-xf', src, '-C', dest]);
     else await run(tool, ['x', '-y', `-o${dest}`, src]);
   } else throw new Error('Bilinmeyen arşiv türü');
 }
@@ -584,13 +598,16 @@ async function makeArchive(items, out, kind) {
   const cwd = path.dirname(items[0]);
   const names = items.map((p) => path.relative(cwd, p));
   if (kind === 'zip') {
-    if (which('zip')) await run(which('zip'), ['-r', '-q', out, ...names], { cwd });
+    // Windows'un tar'ı -a ile uzantıya bakıp zip üretir.
+    if (IS_WIN && which('tar')) await run(which('tar'), ['-a', '-cf', out, ...names], { cwd });
+    else if (IS_WIN) await powershell(`Compress-Archive -LiteralPath ${items.map(psq).join(',')} -DestinationPath ${psq(out)}`);
+    else if (which('zip')) await run(which('zip'), ['-r', '-q', out, ...names], { cwd });
     else {
       const py = 'import sys,os,zipfile\nz=zipfile.ZipFile(sys.argv[1],"w",zipfile.ZIP_DEFLATED)\nfor n in sys.argv[2:]:\n  if os.path.isdir(n):\n    for r,_,fs in os.walk(n):\n      for f in fs: z.write(os.path.join(r,f))\n  else: z.write(n)\nz.close()';
       await run(which('python3') || 'python3', ['-c', py, out, ...names], { cwd });
     }
   } else {
-    await run('tar', [kind === 'tar.gz' ? '-czf' : '-cf', out, ...names], { cwd });
+    await run(which('tar') || 'tar', [kind === 'tar.gz' ? '-czf' : '-cf', out, ...names], { cwd });
   }
   return out;
 }

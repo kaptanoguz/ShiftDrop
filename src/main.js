@@ -13,6 +13,7 @@ if (process.platform === 'linux') {
 
 const WHEEL = 480;
 const TOGGLE_SHORTCUT = 'CommandOrControl+Alt+Space';
+const IS_WIN = process.platform === 'win32';
 const isWayland = process.platform === 'linux' && (process.env.XDG_SESSION_TYPE === 'wayland' || !!process.env.WAYLAND_DISPLAY);
 const ASSETS = path.join(__dirname, '..', 'assets');
 
@@ -160,7 +161,13 @@ function openTerminal(dir) {
     ['foot', ['-D', dir]], ['xterm', []],
   ];
   if (process.platform === 'darwin') { spawn('open', ['-a', 'Terminal', dir], { detached: true }); return; }
-  if (process.platform === 'win32') { spawn('cmd', ['/c', 'start', 'cmd'], { cwd: dir, detached: true }); return; }
+  if (IS_WIN) {
+    // Windows Terminal varsa onu, yoksa klasik komut istemini aç.
+    const wt = path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WindowsApps', 'wt.exe');
+    if (fs.existsSync(wt)) spawn(wt, ['-d', dir], { detached: true, stdio: 'ignore' }).unref();
+    else spawn('cmd.exe', ['/c', 'start', 'cmd.exe'], { cwd: dir, detached: true, stdio: 'ignore' }).unref();
+    return;
+  }
   const dirs = (process.env.PATH || '').split(':');
   const found = candidates.find(([c]) => dirs.some((d) => fs.existsSync(path.join(d, c))));
   if (!found) throw new Error('Terminal bulunamadı');
@@ -202,6 +209,14 @@ async function runAction(paths, id) {
         // GNOME/KDE dosya yöneticileri bu biçimi "yapıştır" olarak tanır.
         clipboard.writeBuffer('x-special/gnome-copied-files', Buffer.from(`copy\n${uris.join('\n')}`));
         clipboard.writeBuffer('text/uri-list', Buffer.from(uris.join('\r\n')));
+      } else if (IS_WIN) {
+        // Gezgin'in "yapıştır" ile tanıdığı dosya listesi (CF_HDROP) için PowerShell kullanıyoruz.
+        const list = paths.map((p) => `'${p.replace(/'/g, "''")}'`).join(',');
+        await new Promise((resolve, reject) => {
+          const ps = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `Set-Clipboard -Path ${list}`], { windowsHide: true });
+          ps.on('error', reject);
+          ps.on('close', (code) => (code === 0 ? resolve() : reject(new Error('Panoya kopyalanamadı'))));
+        });
       } else clipboard.writeText(paths.join('\n'));
       return [ok(null, 'Panoya kopyalandı')];
     }
@@ -243,7 +258,8 @@ function buildTray() {
   if (!tray) {
     tray = new Tray(img);
     tray.setToolTip('ShiftDrop');
-    tray.on('click', () => setBubble(!settings.bubble));
+    // Windows'ta tepsi simgesine tıklamak menüyü açar; Linux'ta balonu açıp kapatır.
+    tray.on('click', () => (IS_WIN ? tray.popUpContextMenu() : setBubble(!settings.bubble)));
   }
   const keyItems = (mode, label) => ({
     label,
@@ -274,10 +290,17 @@ function buildTray() {
 // Linux'ta setLoginItemSettings çalışmaz; XDG autostart dosyası yazıyoruz.
 const autostartFile = () => path.join(app.getPath('home'), '.config', 'autostart', 'shiftdrop.desktop');
 function autostartEnabled() {
-  return process.platform === 'linux' ? fs.existsSync(autostartFile()) : app.getLoginItemSettings().openAtLogin;
+  if (process.platform === 'linux') return fs.existsSync(autostartFile());
+  const exe = process.env.PORTABLE_EXECUTABLE_FILE;
+  return app.getLoginItemSettings(exe ? { path: exe } : undefined).openAtLogin;
 }
 function setAutostart(on) {
-  if (process.platform !== 'linux') { app.setLoginItemSettings({ openAtLogin: on }); return; }
+  if (process.platform !== 'linux') {
+    // Taşınabilir exe her açılışta geçici bir klasöre açılır; asıl exe'nin yolunu kaydet.
+    const exe = process.env.PORTABLE_EXECUTABLE_FILE;
+    app.setLoginItemSettings(exe ? { openAtLogin: on, path: exe } : { openAtLogin: on });
+    return;
+  }
   if (!on) { fs.rmSync(autostartFile(), { force: true }); return; }
   const exec = process.env.APPIMAGE || (app.isPackaged ? process.execPath : `${process.execPath} ${path.join(__dirname, '..')}`);
   fs.mkdirSync(path.dirname(autostartFile()), { recursive: true });
@@ -324,6 +347,8 @@ ipcMain.handle('perform', async (e, { paths, mode, id }) => {
 let hooksOk = false;
 
 if (!app.requestSingleInstanceLock()) app.quit();
+
+if (IS_WIN) app.setAppUserModelId('app.shiftdrop');
 
 app.whenReady().then(() => {
   loadSettings();
