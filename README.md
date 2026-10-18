@@ -14,7 +14,7 @@ Dönüşüm bitince çarkın ortasında bir sonuç kartı belirir. Kartı doğru
 
 ## Kurulum
 
-Hazır kurulum dosyaları [Releases](https://github.com/kaptanoguz/ShiftDrop/releases) sayfasında. Yeni bir `v*` etiketi gönderildiğinde GitHub Actions bunları yeniden derleyip oraya ekler.
+Hazır kurulum dosyaları [Releases](https://github.com/kaptanoguz/ShiftDrop/releases) sayfasında. `main` dalına her kod gönderiminde GitHub Actions bunları yeniden derleyip `package.json`'daki sürüm numarasıyla oraya ekler.
 
 ### Windows
 
