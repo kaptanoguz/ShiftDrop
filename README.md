@@ -8,9 +8,13 @@ A [Tangerine](https://tangerineformac.com/)-style file converter for Linux and W
 | **Ctrl** | Tools | Compress, halve, rotate, square crop, mute, 2× speed, split, merge, ZIP |
 | **Alt** | Actions | Float, copy to clipboard, move, duplicate, copy path, terminal, reveal, move to trash |
 
+![ShiftDrop's three wheels: Convert (Shift), Tools (Ctrl) and Actions (Alt)](docs/screenshots/wheels.png)
+
 You don't need to hold the key. Tap it and the wheel stays open until you drop the file or press **Esc**. While the wheel is open, tap another key to switch wheels. Dropping on the centre cancels. When there are more than eight options, hover over the **More** slice for a moment or turn the mouse wheel.
 
 When a job finishes, a result card appears in the middle of the wheel. You can drag the card straight into another window, or click **Show in folder** or **Open**. Output is always written next to the source file and never overwrites anything (e.g. `photo (1).webp`).
+
+<p align="center"><img src="docs/screenshots/result.png" width="320" alt="Result card after converting an image to WebP, with Show in folder and Open buttons"></p>
 
 > The interface is available in English and Turkish. It follows your system language by default, and you can switch it from the tray menu (**Language**).
 
