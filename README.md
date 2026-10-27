@@ -2,8 +2,6 @@
 
 A [Tangerine](https://tangerineformac.com/)-style file converter for Linux and Windows. Start dragging a file and tap a key: a wheel opens around your cursor, and you drop the file onto the slice you want. Everything runs on your computer, and no file is ever uploaded anywhere.
 
-*Linux ve Windows için sürükle-bırak dosya dönüştürücü: PNG, JPG, WebP, AVIF, PDF, MP4, GIF, MP3 dönüştürme, sıkıştırma, döndürme ve kırpma tek tuşla, internetsiz.*
-
 | Tap while dragging | Wheel | Examples |
 |---|---|---|
 | **Shift** | Convert | PNG, JPG, WebP, AVIF, PDF, MP4, WebM, GIF, MP3, DOCX, XLSX… |
