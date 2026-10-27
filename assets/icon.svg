@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <path id="drop" d="M-12 -298 Q0 -326 12 -298 C46 -244 145 -82 183 -19 A214 214 0 1 1 -183 -19 C-145 -82 -46 -244 -12 -298 Z"/>
+    <path id="lens" transform="translate(26 -4) scale(.78)" d="M-12 -298 Q0 -326 12 -298 C46 -244 145 -82 183 -19 A214 214 0 1 1 -183 -19 C-145 -82 -46 -244 -12 -298 Z"/>
+    <clipPath id="dclip"><use href="#drop"/></clipPath>
+    <clipPath id="lclip"><use href="#lens"/></clipPath>
+
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0e1f4a"/><stop offset="1" stop-color="#040a1f"/>
+    </linearGradient>
+    <linearGradient id="tileEdge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9dbcff" stop-opacity=".32"/><stop offset="1" stop-color="#9dbcff" stop-opacity=".05"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="570" cy="560" r="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1f6bff" stop-opacity=".5"/><stop offset="1" stop-color="#1f6bff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="streak" x1="160" y1="0" x2="440" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4aa8ff" stop-opacity="0"/><stop offset="1" stop-color="#8fd0ff" stop-opacity=".95"/>
+    </linearGradient>
+
+    <!-- spherical body shading: bright where light is refracted (lower right), deep at the edges -->
+    <radialGradient id="body" cx="50" cy="130" r="380" fx="70" fy="170" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6ff0ff"/><stop offset=".3" stop-color="#26b0ff"/><stop offset=".65" stop-color="#0e6cf2"/><stop offset="1" stop-color="#05308f"/>
+    </radialGradient>
+    <radialGradient id="lensFill" cx="90" cy="150" r="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9af4ff" stop-opacity=".95"/><stop offset=".45" stop-color="#3fc4ff" stop-opacity=".8"/><stop offset="1" stop-color="#1468f0" stop-opacity=".55"/>
+    </radialGradient>
+    <linearGradient id="window" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".98"/><stop offset=".7" stop-color="#fff" stop-opacity=".35"/><stop offset="1" stop-color="#fff" stop-opacity=".05"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#bfe8ff" stop-opacity=".75"/><stop offset=".45" stop-color="#4ab6ff" stop-opacity=".25"/><stop offset="1" stop-color="#d4f7ff" stop-opacity=".95"/>
+    </linearGradient>
+
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="30"/></filter>
+    <filter id="b24" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="24"/></filter>
+    <filter id="b12" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="12"/></filter>
+    <filter id="b5" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5"/></filter>
+    <filter id="b2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2"/></filter>
+    <filter id="sk" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><feGaussianBlur stdDeviation="2.5"/></filter>
+    <filter id="skGlow" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><feGaussianBlur stdDeviation="9"/></filter>
+    <filter id="floor" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><feGaussianBlur stdDeviation="16"/></filter>
+  </defs>
+
+  <rect x="64" y="64" width="896" height="896" rx="208" fill="url(#tile)"/>
+  <rect x="64" y="64" width="896" height="896" rx="208" fill="url(#halo)"/>
+  <rect x="65" y="65" width="894" height="894" rx="207" fill="none" stroke="url(#tileEdge)" stroke-width="2"/>
+
+  <!-- floor: contact shadow and the blue light the drop focuses -->
+  <ellipse cx="560" cy="898" rx="170" ry="20" fill="#000" opacity=".55" filter="url(#floor)"/>
+  <ellipse cx="590" cy="892" rx="130" ry="16" fill="#38b4ff" opacity=".45" filter="url(#floor)"/>
+
+  <!-- motion streaks -->
+  <g stroke="url(#streak)" stroke-linecap="round" filter="url(#skGlow)" opacity=".9">
+    <path d="M262 372 H452" stroke-width="27" opacity=".7"/><path d="M200 432 H420" stroke-width="29"/>
+    <path d="M240 498 H400" stroke-width="27" opacity=".8"/><path d="M168 566 H386" stroke-width="30"/>
+    <path d="M222 636 H384" stroke-width="27" opacity=".8"/><path d="M188 704 H398" stroke-width="29"/>
+    <path d="M270 768 H424" stroke-width="26" opacity=".6"/>
+  </g>
+  <g stroke="url(#streak)" stroke-linecap="round" filter="url(#sk)">
+    <path d="M262 372 H452" stroke-width="7" opacity=".7"/><path d="M200 432 H420" stroke-width="9"/>
+    <path d="M240 498 H400" stroke-width="7" opacity=".8"/><path d="M168 566 H386" stroke-width="10"/>
+    <path d="M222 636 H384" stroke-width="7" opacity=".8"/><path d="M188 704 H398" stroke-width="9"/>
+    <path d="M270 768 H424" stroke-width="6" opacity=".6"/>
+  </g>
+
+  <g transform="translate(560 548) rotate(-8) scale(1.06)">
+    <use href="#drop" fill="#1a7dff" opacity=".6" filter="url(#glow)"/>
+    <use href="#drop" fill="url(#body)"/>
+    <g clip-path="url(#dclip)">
+      <!-- depth: dark inner band along the edge, heavier on the upper left (away from the light) -->
+      <use href="#drop" fill="none" stroke="#021457" stroke-width="80" opacity=".55" filter="url(#b24)"/>
+      <use href="#drop" transform="translate(-30 -20)" fill="none" stroke="#021457" stroke-width="60" opacity=".45" filter="url(#b24)"/>
+
+      <!-- inner lens (thick glass wall) with its own shading and inner shadow -->
+      <use href="#lens" fill="url(#lensFill)" filter="url(#b2)"/>
+      <g clip-path="url(#lclip)">
+        <use href="#lens" transform="translate(-18 -22)" fill="none" stroke="#0a3cb8" stroke-width="40" opacity=".55" filter="url(#b12)"/>
+      </g>
+
+      <!-- refracted light gathering at the bottom -->
+      <ellipse cx="60" cy="226" rx="140" ry="54" transform="rotate(-12 60 226)" fill="#c9fbff" opacity=".85" filter="url(#b24)"/>
+      <path d="M-150 214 C-90 286 90 292 170 186" fill="none" stroke="#effeff" stroke-width="7" stroke-linecap="round" opacity=".9" filter="url(#b2)"/>
+
+      <!-- window reflection (two panes) on the upper left -->
+      <path d="M-14 -262 C-44 -214 -96 -128 -122 -46 L-86 -36 C-62 -114 -22 -196 4 -240 Z" fill="url(#window)" filter="url(#b2)"/>
+      <path d="M-130 -20 L-94 -10 C-100 22 -100 52 -94 84 L-130 78 C-138 46 -138 14 -130 -20 Z" fill="#fff" opacity=".45" filter="url(#b2)"/>
+
+      <!-- fresnel reflection along the right edge -->
+      <path d="M150 -30 C188 22 206 92 198 168" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round" opacity=".4" filter="url(#b5)"/>
+
+      <!-- specular glints -->
+      <circle cx="118" cy="-6" r="15" fill="#fff" filter="url(#b2)"/>
+      <circle cx="140" cy="26" r="6" fill="#fff" opacity=".85"/>
+    </g>
+    <use href="#drop" fill="none" stroke="url(#rim)" stroke-width="6"/>
+  </g>
+</svg>

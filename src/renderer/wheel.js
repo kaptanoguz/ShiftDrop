@@ -170,7 +170,7 @@ function renderModes() {
   $('title').textContent = st.data && !st.data.items.length && st.phase !== 'pick' ? t('Bırak') : MODE_NAME[st.mode];
   const cat = st.data?.cat || 'other';
   const icon = $('catIcon');
-  if (!st.data) { icon.className = 'logo'; icon.innerHTML = window.TANGERINE; } else { icon.className = ''; icon.innerHTML = window.icon(cat, 30); }
+  if (!st.data) { icon.className = 'logo'; icon.innerHTML = window.LOGO; } else { icon.className = ''; icon.innerHTML = window.icon(cat, 30); }
   let sub;
   if (st.phase === 'pick' && !st.paths) sub = t('Dosyayı buraya bırak');
   else if (!st.data) sub = t('Dosya bekleniyor');

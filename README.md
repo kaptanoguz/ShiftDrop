@@ -78,7 +78,7 @@ Keys pressed while dragging are detected system-wide, with no extra permissions.
 ## X11 and Wayland
 
 - **X11**: Keys pressed while dragging are detected system-wide, and the wheel opens at your cursor.
-- **Wayland**: For security, Wayland doesn't let apps listen to keys pressed in other apps. To work around this, a small **tangerine bubble** sits on the right edge of the screen. Drag a file onto the bubble and the wheel opens there. Shift, Ctrl and Alt still work once the wheel is open, because the cursor is now over ShiftDrop. You can drag the bubble up and down along the edge.
+- **Wayland**: For security, Wayland doesn't let apps listen to keys pressed in other apps. To work around this, a small **drop bubble** sits on the right edge of the screen. Drag a file onto the bubble and the wheel opens there. Shift, Ctrl and Alt still work once the wheel is open, because the cursor is now over ShiftDrop. You can drag the bubble up and down along the edge.
 
 On X11 you can also turn the bubble on from the tray menu. The tray menu also lets you change key bindings and start the app at login. Fallback shortcut: **Ctrl+Alt+Space** opens the wheel under the cursor. Drop a file onto it, then click a slice.
 
