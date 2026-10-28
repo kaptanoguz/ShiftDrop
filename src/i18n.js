@@ -68,6 +68,8 @@ const EN = {
   'Tuş algılama kapalı: kenar balonunu kullan': 'Key detection is off: use the edge bubble',
   'Kenar balonu': 'Edge bubble', 'Tuşlar': 'Keys', 'Oturum açılınca başlat': 'Start at login', 'Çıkış': 'Quit',
   'Dil': 'Language',
+  'Tepside çalışıyor. Bir dosyayı sürüklerken {c} tuşuna dokun.': 'Running in the tray. While dragging a file, tap {c}.',
+  'Tepside çalışıyor. Dosyayı ekranın sağ kenarındaki balona sürükle.': 'Running in the tray. Drag a file onto the bubble at the right edge of the screen.',
 };
 
 let lang = 'tr';

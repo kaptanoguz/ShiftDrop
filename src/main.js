@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, shell, Tray, Menu, nativeImage, globalShortcut, clipboard, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, shell, Tray, Menu, nativeImage, globalShortcut, clipboard, dialog, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -19,6 +19,8 @@ const TOGGLE_SHORTCUT = 'CommandOrControl+Alt+Space';
 const IS_WIN = process.platform === 'win32';
 const isWayland = process.platform === 'linux' && (process.env.XDG_SESSION_TYPE === 'wayland' || !!process.env.WAYLAND_DISPLAY);
 const ASSETS = path.join(__dirname, '..', 'assets');
+// Oturum açılışında sessiz başla (otomatik başlatma bu bayrakla çağırır).
+const HIDDEN = process.argv.includes('--hidden');
 
 let wheel = null;
 let bubble = null;
@@ -301,19 +303,19 @@ const autostartFile = () => path.join(app.getPath('home'), '.config', 'autostart
 function autostartEnabled() {
   if (process.platform === 'linux') return fs.existsSync(autostartFile());
   const exe = process.env.PORTABLE_EXECUTABLE_FILE;
-  return app.getLoginItemSettings(exe ? { path: exe } : undefined).openAtLogin;
+  return app.getLoginItemSettings(exe ? { path: exe, args: ['--hidden'] } : { args: ['--hidden'] }).openAtLogin;
 }
 function setAutostart(on) {
   if (process.platform !== 'linux') {
     // Taşınabilir exe her açılışta geçici bir klasöre açılır; asıl exe'nin yolunu kaydet.
     const exe = process.env.PORTABLE_EXECUTABLE_FILE;
-    app.setLoginItemSettings(exe ? { openAtLogin: on, path: exe } : { openAtLogin: on });
+    app.setLoginItemSettings(exe ? { openAtLogin: on, path: exe, args: ['--hidden'] } : { openAtLogin: on, args: ['--hidden'] });
     return;
   }
   if (!on) { fs.rmSync(autostartFile(), { force: true }); return; }
   const exec = process.env.APPIMAGE || (app.isPackaged ? process.execPath : `${process.execPath} ${path.join(__dirname, '..')}`);
   fs.mkdirSync(path.dirname(autostartFile()), { recursive: true });
-  fs.writeFileSync(autostartFile(), `[Desktop Entry]\nType=Application\nName=ShiftDrop\nExec=${exec}\nX-GNOME-Autostart-enabled=true\n`);
+  fs.writeFileSync(autostartFile(), `[Desktop Entry]\nType=Application\nName=ShiftDrop\nExec=${exec} --hidden\nX-GNOME-Autostart-enabled=true\n`);
 }
 
 // ---------- Dil ----------
@@ -374,11 +376,30 @@ ipcMain.handle('perform', async (e, { paths, mode, id }) => {
 
 let hooksOk = false;
 
-if (!app.requestSingleInstanceLock()) app.quit();
+// İkinci kopya hiçbir şey kurmadan çıkar; çalışan kopya 'second-instance' olayını alır.
+const isPrimary = app.requestSingleInstanceLock();
+if (!isPrimary) app.quit();
+
+// Penceresi olmayan bir tepsi uygulaması: elle açılınca çalıştığını haber ver, yoksa hiçbir şey olmamış gibi görünür.
+function announce() {
+  if (!Notification.isSupported()) return;
+  const body = hooksOk
+    ? t('Tepside çalışıyor. Bir dosyayı sürüklerken {c} tuşuna dokun.', { c: settings.keys.convert })
+    : t('Tepside çalışıyor. Dosyayı ekranın sağ kenarındaki balona sürükle.');
+  new Notification({ title: 'ShiftDrop', body, icon: path.join(ASSETS, 'icon.png') }).show();
+}
+
+// Zaten açıkken tekrar başlatılırsa (menüden, Gear Lever'dan…) yeni kopya kapanır; çalışan kopya çarkı gösterir.
+app.on('second-instance', () => {
+  if (!wheel) return;
+  openWheel('convert', 'shortcut');
+  announce();
+});
 
 if (IS_WIN) app.setAppUserModelId('app.shiftdrop');
 
 app.whenReady().then(() => {
+  if (!isPrimary) return;
   loadSettings();
   i18n.setLang(initialLanguage());
   createWheel();
@@ -388,6 +409,7 @@ app.whenReady().then(() => {
   // Yedek: kısayol çarkı imlecin altında açar; dosyayı sonra üzerine bırakabilirsin.
   globalShortcut.register(TOGGLE_SHORTCUT, () => (wheel.isVisible() ? closeWheel(true) : openWheel('convert', 'shortcut')));
   buildTray();
+  if (!HIDDEN) announce();
   screen.on('display-metrics-changed', () => bubble.setBounds(bubbleBounds()));
 });
 
