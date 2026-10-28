@@ -30,11 +30,20 @@ Each build comes in English and Turkish. The language only sets the default; bot
 |---|---|---|
 | Installer | `ShiftDrop-Setup-<version>.exe` | `ShiftDrop-Kurulum-<version>.exe` |
 | Portable | `ShiftDrop-Portable-<version>.exe` | `ShiftDrop-Tasinabilir-<version>.exe` |
-| Linux | `ShiftDrop-<version>-EN.AppImage` | `ShiftDrop-<version>-TR.AppImage` |
+| Linux (AppImage) | `ShiftDrop-<version>-EN.AppImage` | `ShiftDrop-<version>-TR.AppImage` |
+| Linux (.deb) | `shiftdrop_<version>_en_amd64.deb` | `shiftdrop_<version>_tr_amd64.deb` |
 
 The installer creates desktop and Start menu shortcuts and doesn't need admin rights. The portable version needs no installation; double-click to run.
 
 The app is unsigned, so SmartScreen may show "Windows protected your PC" the first time you open it. Click **More info → Run anyway**. ShiftDrop runs in the notification area on the right side of the taskbar, and its menu is there.
+
+### Linux (.deb: Ubuntu, Linux Mint, Debian)
+
+```bash
+sudo apt install ./shiftdrop_*_en_amd64.deb
+```
+
+This adds ShiftDrop to the app menu and installs it under `/opt/ShiftDrop`; `sudo apt remove shiftdrop` removes it. The English and Turkish packages share one package name, so installing one replaces the other.
 
 ### Linux (AppImage)
 
@@ -52,7 +61,7 @@ git clone https://github.com/kaptanoguz/ShiftDrop.git && cd ShiftDrop
 npm install
 npm start          # run the app
 npm test           # test the conversion engine without Electron
-npm run dist:linux:en  # build an English AppImage into dist/ (dist:linux for Turkish)
+npm run dist:linux:en  # build an English AppImage and .deb into dist/ (dist:linux for Turkish)
 npm run dist:win:en    # build the English Windows installer and portable exe (dist:win for Turkish; needs wine on Linux)
 ```
 
