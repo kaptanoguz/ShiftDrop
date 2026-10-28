@@ -18,8 +18,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, lang: tr, cmd: npm run dist:linux, files: dist/*.AppImage }
-          - { os: ubuntu-latest, lang: en, cmd: npm run dist:linux:en, files: dist/*.AppImage }
+          - { os: ubuntu-latest, lang: tr, cmd: npm run dist:linux, files: "dist/*.AppImage\ndist/*.deb" }
+          - { os: ubuntu-latest, lang: en, cmd: npm run dist:linux:en, files: "dist/*.AppImage\ndist/*.deb" }
           - { os: windows-latest, lang: tr, cmd: npm run dist:win, files: dist/ShiftDrop-*.exe }
           - { os: windows-latest, lang: en, cmd: npm run dist:win:en, files: dist/ShiftDrop-*.exe }
     runs-on: ${{ matrix.os }}
@@ -62,7 +62,9 @@ jobs:
             |---|---|---|
             | **Windows installer** | `ShiftDrop-Setup-*.exe` | `ShiftDrop-Kurulum-*.exe` |
             | **Windows portable** | `ShiftDrop-Portable-*.exe` | `ShiftDrop-Tasinabilir-*.exe` |
-            | **Linux** | `ShiftDrop-*-EN.AppImage` | `ShiftDrop-*-TR.AppImage` |
+            | **Linux AppImage** | `ShiftDrop-*-EN.AppImage` | `ShiftDrop-*-TR.AppImage` |
+            | **Linux .deb** (Ubuntu, Mint, Debian) | `shiftdrop_*_en_amd64.deb` | `shiftdrop_*_tr_amd64.deb` |
 
             The language only sets the default; you can switch it any time from the tray menu (Language / Dil).
-            Linux: `chmod +x ShiftDrop-*.AppImage` and run it.
+            Linux AppImage: `chmod +x ShiftDrop-*.AppImage` and run it.
+            Linux .deb: `sudo apt install ./shiftdrop_*_amd64.deb`, then open ShiftDrop from the app menu.
