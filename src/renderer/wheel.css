@@ -88,6 +88,10 @@ html, body {
 #track { stroke: var(--chip); }
 #progress { stroke: url(#progressGrad); stroke-linecap: round; stroke-dasharray: 527.8; stroke-dashoffset: 527.8; transition: stroke-dashoffset 240ms ease, opacity 200ms ease; }
 #stage.busy #track, #stage.busy #progress { opacity: 1; }
+/* İlerleme bildirmeyen işler (görsel, PDF, belge…): sabit %0 yerine dönen yay */
+#progressSpin { transform-origin: 240px 240px; }
+#stage.indeterminate #progressSpin { animation: spin 1.1s linear infinite; }
+#stage.indeterminate #progress { stroke-dashoffset: 396 !important; transition: opacity 200ms ease; }
 
 /* ---------- Merkez ---------- */
 #center {

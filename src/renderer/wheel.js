@@ -354,22 +354,27 @@ async function run(item) {
   st.phase = 'busy';
   api.setBusy(true);
   stage.classList.add('busy');
+  // Gerçek yüzde gelene kadar belirsiz (dönen) gösterim; yalnızca ffmpeg işleri yüzde bildirir.
+  stage.classList.add('indeterminate');
   setProgress(0);
   $('busyLabel').textContent = MODE_VERB[st.mode];
-  $('pct').textContent = st.mode === 'actions' ? '…' : '0%';
+  $('pct').textContent = '…';
   let results;
   try {
     results = await api.perform(st.paths, st.mode, item.id);
   } catch (err) {
     results = [{ ok: false, error: err.message }];
   }
-  stage.classList.remove('busy');
+  stage.classList.remove('busy', 'indeterminate');
   if (results.length && results.every((r) => r.cancelled)) { st.phase = 'drag'; api.setBusy(false); dismiss(); return; }
   showResult(results, item);
 }
 
 api.on('progress', (p) => {
   if (st.phase !== 'busy') return;
+  // İş bitince gelen 1 değeri belirsiz gösterimi yüzdeye çevirmesin; sonuç ekranı zaten açılacak.
+  if (p >= 1 && stage.classList.contains('indeterminate')) return;
+  stage.classList.remove('indeterminate');
   setProgress(p);
   $('pct').textContent = `${Math.round(p * 100)}%`;
 });
