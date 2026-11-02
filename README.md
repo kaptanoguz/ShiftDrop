@@ -87,13 +87,17 @@ Keys pressed while dragging are detected system-wide, with no extra permissions.
 ## X11 and Wayland
 
 - **X11**: Keys pressed while dragging are detected system-wide, and the wheel opens at your cursor.
-- **Wayland**: For security, Wayland doesn't let apps listen to keys pressed in other apps. To work around this, a small **drop bubble** sits on the right edge of the screen. Drag a file onto the bubble and the wheel opens there. Shift, Ctrl and Alt still work once the wheel is open, because the cursor is now over ShiftDrop. You can drag the bubble up and down along the edge.
+- **Wayland (GNOME, KDE)**: Other apps' keystrokes never reach an X11 hook. `uiohook` listens with XRecord, and a Wayland client such as Files or Nautilus does not send those events through XWayland, even if ShiftDrop itself is forced onto X11. Pressing Shift while dragging in those apps therefore does nothing. GNOME also has no tray icon unless the AppIndicator extension is installed, so a tray-only app looks like it never started.
 
-On X11 you can also turn the bubble on from the tray menu. The tray menu also lets you change key bindings and start the app at login. Fallback shortcut: **Ctrl+Alt+Space** opens the wheel under the cursor. Drop a file onto it, then click a slice.
+ShiftDrop always shows the **drop bubble** on the right edge in a Wayland session. Drag a file onto it and the wheel opens. **Ctrl+Alt+Space** opens the wheel as well. Once the wheel is open, Shift, Ctrl and Alt work, because the pointer is over ShiftDrop. The bubble can be dragged up and down along the edge.
+
+On startup the process re-executes itself with `--ozone-platform=x11` so the bubble and the wheel can be positioned. Setting that switch from JavaScript is too late: Electron has already chosen Wayland. If the session can read `/dev/input` (systemd-logind usually grants this to the active user), ShiftDrop also watches kernel input devices for the drag gesture. That is best-effort. The bubble is the path that does not depend on it.
+
+On X11 you can turn the bubble on from the tray menu. The tray menu also lets you change key bindings and start the app at login.
 
 ## Known limitations
 
-- On Wayland the app runs through XWayland, because that's the only way to position a window next to the cursor.
+- On Wayland the global Shift / Ctrl / Alt gesture does not see other apps. Use the edge bubble or Ctrl+Alt+Space. The app still runs through XWayland so those windows can sit at the screen edge.
 - No HEIC encoding (decoding depends on system libraries). Pages and Keynote files aren't supported.
 - Tools that need settings, such as choosing a crop or trim range, aren't available. **Split** cuts a file in half.
 

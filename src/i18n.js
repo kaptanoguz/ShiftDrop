@@ -68,10 +68,14 @@ const EN = {
   // Tepsi
   'Sürüklerken {c}: dönüştür · {t}: araçlar · {a}: eylemler': 'While dragging, {c}: convert · {t}: tools · {a}: actions',
   'Tuş algılama kapalı: kenar balonunu kullan': 'Key detection is off: use the edge bubble',
+  'Tuşlar diğer uygulamalarda görünmez: sağ kenardaki balonu kullan': 'Other apps hide these keys: use the bubble on the right edge',
   'Kenar balonu': 'Edge bubble', 'Tuşlar': 'Keys', 'Oturum açılınca başlat': 'Start at login', 'Çıkış': 'Quit',
   'Dil': 'Language',
   'Tepside çalışıyor. Bir dosyayı sürüklerken {c} tuşuna dokun.': 'Running in the tray. While dragging a file, tap {c}.',
   'Tepside çalışıyor. Dosyayı ekranın sağ kenarındaki balona sürükle.': 'Running in the tray. Drag a file onto the bubble at the right edge of the screen.',
+  'Sağ kenardaki balona dosya sürükle. {s} çarkı da açar.': 'Drag a file onto the bubble at the right edge. {s} also opens the wheel.',
+  'Wayland: diğer uygulamaların tuşları görünmez. Dosyayı sağ kenardaki balona sürükle. {s} çarkı açar.': 'Wayland cannot see other apps\' keys. Drag a file onto the bubble at the right edge. {s} opens the wheel.',
+  'Çekirdek girdi aygıtı da dinleniyor; Shift jesti oturum izin verirse çalışır.': 'Also listening to kernel input devices; the Shift gesture works when the session allows it.',
 };
 
 let lang = 'tr';
