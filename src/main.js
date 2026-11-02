@@ -3,17 +3,38 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { spawn } = require('child_process');
+const { needsX11Relaunch } = require('./linux-launch');
+const { createDragGesture, startEvdevWatch } = require('./evdev');
+
+// sharp yüklüyse bile Electron+Linux için bu uyarıyı basar; N-API ikilisi çalışır, çıktıyı boğmasın.
+const emitWarning = process.emitWarning.bind(process);
+process.emitWarning = (warning, type, code, ctor) => {
+  const warningCode = type && typeof type === 'object' ? type.code : code;
+  if (warningCode === 'SharpElectronLinux') return;
+  return emitWarning(warning, type, code, ctor);
+};
+
 const { optionsFor, perform } = require('./engine');
 const i18n = require('./i18n');
 const { t } = i18n;
 const pkg = require('../package.json');
 
-// Linux: Wayland pencerelerin konumlanmasına izin vermez, bu yüzden XWayland (X11) üzerinden çalışıyoruz.
-// Saydam pencereler için de bu bayrak gerekir.
-if (process.platform === 'linux') {
-  app.commandLine.appendSwitch('ozone-platform', 'x11');
-  app.commandLine.appendSwitch('enable-transparent-visuals');
+// Ozone platformu JS'ten değiştirilemez (appendSwitch Wayland çoktan seçildikten sonra yok sayılır).
+// Wayland oturumunda kendimizi gerçek --ozone-platform=x11 argv'si ile yeniden başlatırız.
+function relaunchWaylandOnX11() {
+  if (!needsX11Relaunch({ platform: process.platform, env: process.env, argv: process.argv })) return false;
+  const child = spawn(process.execPath, process.argv.slice(1).concat(['--ozone-platform=x11', '--enable-transparent-visuals']), {
+    detached: true,
+    stdio: 'inherit',
+    env: process.env,
+  });
+  child.unref();
+  console.error('ShiftDrop: Wayland oturumu XWayland üzerinden açılıyor (--ozone-platform=x11).');
+  app.exit(0);
+  return true;
 }
+const relaunching = relaunchWaylandOnX11();
+if (process.platform === 'linux' && !relaunching) app.commandLine.appendSwitch('enable-transparent-visuals');
 
 const WHEEL = 480;
 const TOGGLE_SHORTCUT = 'CommandOrControl+Alt+Space';
@@ -100,10 +121,21 @@ function centerOn(pt) {
   wheel.setBounds({ x: Math.round(x), y: Math.round(y), width: WHEEL, height: WHEEL });
 }
 
-function openWheel(mode, source) {
+function cursorForGesture() {
+  try {
+    const pt = screen.getCursorScreenPoint();
+    // XWayland, imleç bir Wayland penceresindeyken konumu güncellemez; (0,0) o kaçırmadır.
+    if (pt && (Math.abs(pt.x) > 1 || Math.abs(pt.y) > 1)) return pt;
+  } catch { /* ekran yok */ }
+  const { workArea: wa } = screen.getPrimaryDisplay();
+  return { x: wa.x + wa.width - Math.round(WHEEL * 0.75), y: wa.y + Math.round(wa.height / 2) };
+}
+
+function openWheel(mode, source, point) {
   clearTimeout(hideTimer);
+  if (!wheel || wheel.isDestroyed()) return;
   if (!wheel.isVisible()) {
-    centerOn(screen.getCursorScreenPoint());
+    centerOn(point || screen.getCursorScreenPoint());
     wheel.showInactive();
     wheel.webContents.send('wheel:open', { mode, source, keys: settings.keys });
   } else {
@@ -161,6 +193,22 @@ function startHooks() {
   });
   try { uIOhook.start(); } catch (e) { console.warn('uiohook başlatılamadı:', e.message); return false; }
   return true;
+}
+
+// Wayland istemcilerinin olayı XRecord'a düşmez. Oturum /dev/input okuyabiliyorsa jesti buradan kur.
+let stopEvdev = () => {};
+function startEvdev() {
+  if (!isWayland) return 0;
+  const gesture = createDragGesture();
+  const watch = startEvdevWatch((type, code, value) => {
+    const action = gesture.feed(type, code, value, settings.keys);
+    if (!action || !wheel || wheel.isDestroyed()) return;
+    if (action.escape) { if (wheel.isVisible() && !busy) closeWheel(); return; }
+    if (action.release) { scheduleCloseCheck(); return; }
+    if (action.open) openWheel(action.open, 'key', cursorForGesture());
+  });
+  stopEvdev = watch.stop;
+  return watch.devices;
 }
 
 // ---------- Dosya eylemleri (Alt çarkı) ----------
@@ -309,7 +357,7 @@ function buildTray() {
   });
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'ShiftDrop', enabled: false },
-    { label: hooksOk ? t('Sürüklerken {c}: dönüştür · {t}: araçlar · {a}: eylemler', { c: settings.keys.convert, t: settings.keys.tools, a: settings.keys.actions }) : t('Tuş algılama kapalı: kenar balonunu kullan'), enabled: false },
+    { label: hooksUseful ? t('Sürüklerken {c}: dönüştür · {t}: araçlar · {a}: eylemler', { c: settings.keys.convert, t: settings.keys.tools, a: settings.keys.actions }) : t('Tuşlar diğer uygulamalarda görünmez: sağ kenardaki balonu kullan'), enabled: false },
     { type: 'separator' },
     { label: t('Kenar balonu'), type: 'checkbox', checked: settings.bubble, click: (i) => setBubble(i.checked) },
     { label: t('Tuşlar'), submenu: [keyItems('convert', t('Dönüştür')), keyItems('tools', t('Araçlar')), keyItems('actions', t('Eylemler'))] },
@@ -347,7 +395,8 @@ function setAutostart(on) {
       ? quote(process.execPath)
       : `${quote(process.execPath)} ${quote(path.join(__dirname, '..'))}`;
   fs.mkdirSync(path.dirname(autostartFile()), { recursive: true });
-  fs.writeFileSync(autostartFile(), `[Desktop Entry]\nType=Application\nName=ShiftDrop\nExec=${exec} --hidden\nX-GNOME-Autostart-enabled=true\n`);
+  const ozone = '--ozone-platform=x11 --enable-transparent-visuals';
+  fs.writeFileSync(autostartFile(), `[Desktop Entry]\nType=Application\nName=ShiftDrop\nExec=${exec} ${ozone} --hidden\nX-GNOME-Autostart-enabled=true\n`);
 }
 
 // ---------- Dil ----------
@@ -427,17 +476,19 @@ ipcMain.handle('perform', async (e, { paths, mode, id }) => {
 // ---------- Başlangıç ----------
 
 let hooksOk = false;
+// X11'de XRecord diğer uygulamaları görür. Wayland'de görmez; balon asıl yoldur.
+let hooksUseful = false;
 
 // İkinci kopya hiçbir şey kurmadan çıkar; çalışan kopya 'second-instance' olayını alır.
-const isPrimary = app.requestSingleInstanceLock();
+const isPrimary = relaunching || app.requestSingleInstanceLock();
 if (!isPrimary) app.quit();
 
 // Penceresi olmayan bir tepsi uygulaması: elle açılınca çalıştığını haber ver, yoksa hiçbir şey olmamış gibi görünür.
 function announce() {
   if (!Notification.isSupported()) return;
-  const body = hooksOk
+  const body = hooksUseful
     ? t('Tepside çalışıyor. Bir dosyayı sürüklerken {c} tuşuna dokun.', { c: settings.keys.convert })
-    : t('Tepside çalışıyor. Dosyayı ekranın sağ kenarındaki balona sürükle.');
+    : t('Sağ kenardaki balona dosya sürükle. {s} çarkı da açar.', { s: 'Ctrl+Alt+Space' });
   new Notification({ title: 'ShiftDrop', body, icon: path.join(ASSETS, 'icon.png') }).show();
 }
 
@@ -450,25 +501,36 @@ app.on('second-instance', () => {
 
 if (IS_WIN) app.setAppUserModelId('app.shiftdrop');
 
-app.whenReady().then(() => {
+if (!relaunching) app.whenReady().then(() => {
   if (!isPrimary) return;
   loadSettings();
   i18n.setLang(initialLanguage());
-  createWheel();
-  createBubble();
-  hooksOk = startHooks();
-  // Tuş kancası yoksa kenar balonu tek giriş yolu — ayarı açmak yetmez, pencereyi de göster.
-  if (!hooksOk) setBubble(true);
-  // Yedek: kısayol çarkı imlecin altında açar; dosyayı sonra üzerine bırakabilirsin.
-  globalShortcut.register(TOGGLE_SHORTCUT, () => (wheel.isVisible() ? closeWheel(true) : openWheel('convert', 'shortcut')));
-  buildTray();
-  if (!HIDDEN) announce();
-  screen.on('display-metrics-changed', () => bubble.setBounds(bubbleBounds()));
+  // Saydam pencere, X görseli hazır olmadan açılırsa görünmez kalır.
+  const bootUi = () => {
+    createWheel();
+    createBubble();
+    hooksOk = startHooks();
+    const evdevDevices = startEvdev();
+    hooksUseful = hooksOk && !isWayland;
+    // Wayland'de kanca "başarılı" olsa da Nautilus'un tuşunu görmez. Tepsi de GNOME'da yoktur.
+    if (isWayland || !hooksOk) setBubble(true);
+    if (isWayland) {
+      console.error(t('Wayland: diğer uygulamaların tuşları görünmez. Dosyayı sağ kenardaki balona sürükle. {s} çarkı açar.', { s: 'Ctrl+Alt+Space' }));
+      if (evdevDevices) console.error(t('Çekirdek girdi aygıtı da dinleniyor; Shift jesti oturum izin verirse çalışır.'));
+    }
+    globalShortcut.register(TOGGLE_SHORTCUT, () => (wheel.isVisible() ? closeWheel(true) : openWheel('convert', 'shortcut')));
+    buildTray();
+    if (!HIDDEN) announce();
+    screen.on('display-metrics-changed', () => bubble.setBounds(bubbleBounds()));
+  };
+  if (process.platform === 'linux') setTimeout(bootUi, 150);
+  else bootUi();
 });
 
 // Tepsi uygulaması: son pencere kapanınca çıkma (Electron bu olaya argüman vermez).
 app.on('window-all-closed', () => {});
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  try { stopEvdev(); } catch { /* yoksay */ }
   try { require('uiohook-napi').uIOhook.stop(); } catch { /* yoksay */ }
 });
