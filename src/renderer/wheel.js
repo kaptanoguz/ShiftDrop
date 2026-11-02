@@ -209,7 +209,7 @@ async function loadOptions(paths) {
 async function refresh(anim) {
   const paths = st.paths || st.guess;
   if (paths) await loadOptions(paths);
-  else if (st.guessCount) st.data = { title: `${st.guessCount} dosya`, cat: st.guessCount > 1 ? 'mixed' : 'other', items: [] };
+  else if (st.guessCount) st.data = { title: t('{n} dosya', { n: st.guessCount }), cat: st.guessCount > 1 ? 'mixed' : 'other', items: [] };
   else st.data = null;
   render(anim);
 }
@@ -242,6 +242,14 @@ api.on('wheel:mode', ({ mode }) => { if (st.phase === 'drag' || st.phase === 'pi
 api.on('wheel:close', () => {
   stage.classList.add('closing');
   setTimeout(() => { stage.className = 'closed'; st.phase = 'closed'; resetState(); segG.innerHTML = ''; }, 190);
+});
+// Balona bırakılan dosyalar: seçim aşamasına geç.
+api.on('wheel:files', async ({ paths }) => {
+  if (!paths?.length || st.phase === 'busy' || st.phase === 'done') return;
+  st.paths = paths;
+  st.phase = 'pick';
+  api.setBusy(true);
+  await refresh('swap');
 });
 
 function dismiss() { api.dismiss(); }
@@ -301,6 +309,8 @@ document.addEventListener('drop', async (e) => {
   if (st.phase === 'busy' || st.phase === 'done') return;
   const paths = [...e.dataTransfer.files].map((f) => api.pathFor(f)).filter(Boolean);
   if (!paths.length) { dismiss(); return; }
+  // mouseup → scheduleCloseCheck yarışından önce kilitle (await loadOptions gecikebilir).
+  api.setBusy(true);
   const hit = hitTest(e.clientX, e.clientY);
   const items = visibleItems();
   const known = !!st.guess && items.length;
@@ -313,11 +323,10 @@ document.addEventListener('drop', async (e) => {
     const real = st.data.items.find((x) => x.id === chosen.id);
     if (real) { run(real); return; }
   }
-  if (known && hit === -2 && st.phase === 'drag') { dismiss(); return; } // merkeze bırakmak = vazgeç
+  if (known && hit === -2 && st.phase === 'drag') { api.setBusy(false); dismiss(); return; } // merkeze bırakmak = vazgeç
 
   // Tür önceden bilinmiyordu ya da merkez dışına bırakıldı: bırak, sonra tıklayarak seç.
   st.phase = 'pick';
-  api.setBusy(true); // seçim yapılana kadar açık kalsın
   await refresh('swap');
 });
 

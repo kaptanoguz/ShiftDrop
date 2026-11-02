@@ -70,12 +70,16 @@ function ffmpeg(args, onProgress) {
 async function mediaDuration(src) {
   // ffmpeg -i çıktı dosyası olmadan hata koduyla döner; süreyi stderr'den okuyoruz.
   return new Promise((resolve) => {
-    const p = spawn(FFMPEG, ['-hide_banner', '-i', src]);
+    let settled = false;
+    const done = (v) => { if (!settled) { settled = true; resolve(v); } };
+    let p;
+    try { p = spawn(FFMPEG, ['-hide_banner', '-i', src]); } catch { done(0); return; }
     let s = '';
     p.stderr.on('data', (d) => { s += d; });
+    p.on('error', () => done(0));
     p.on('close', () => {
       const m = s.match(/Duration: (\d+):(\d+):(\d+\.\d+)/);
-      resolve(m ? +m[1] * 3600 + +m[2] * 60 + +m[3] : 0);
+      done(m ? +m[1] * 3600 + +m[2] * 60 + +m[3] : 0);
     });
   });
 }
@@ -164,9 +168,12 @@ function optionsFor(paths, mode) {
 
   if (mode === 'convert') {
     const list = (CONVERT_TARGETS[cat] || []).filter(([id]) => id !== ext);
-    const items = list.map(([id, hint]) => ({
-      id, label: id === 'extract' ? t('Aç') : id.toUpperCase(), hint: t(hint), icon: id === 'extract' ? 'unzip' : null,
-    }));
+    // poppler yoksa PDF→görsel yalnızca ilk sayfa (LibreOffice); kullanıcıyı yanıltma.
+    const pdfRasterFallback = cat === 'pdf' && !which('pdftoppm');
+    const items = list.map(([id, hint]) => {
+      const labelHint = pdfRasterFallback && (id === 'png' || id === 'jpg') ? t('İlk sayfa') : t(hint);
+      return { id, label: id === 'extract' ? t('Aç') : id.toUpperCase(), hint: labelHint, icon: id === 'extract' ? 'unzip' : null };
+    });
     return { title, cat, items };
   }
 
@@ -217,11 +224,32 @@ async function imageConvert(src, to, dir, base) {
   return out;
 }
 
+async function imageToPngBuffer(src) {
+  if (sharp) return sharp(src).rotate().png().toBuffer();
+  // sharp yoksa ffmpeg ile PNG'ye çevir (JPEG/WebP/HEIC…).
+  const dir = tmpDir();
+  const tmp = path.join(dir, 'frame.png');
+  try {
+    await ffmpeg(['-i', src, '-frames:v', '1', tmp]);
+    return fs.readFileSync(tmp);
+  } finally { rm(dir); }
+}
+
+async function embedImageInPdf(doc, src) {
+  // sharp varsa EXIF yönünü de uygula; yoksa doğrudan göm veya ffmpeg ile PNG'ye çevir.
+  if (sharp) return doc.embedPng(await imageToPngBuffer(src));
+  const ext = norm(extOf(src));
+  try {
+    if (ext === 'jpg' || ext === 'jpeg') return await doc.embedJpg(fs.readFileSync(src));
+    if (ext === 'png') return await doc.embedPng(fs.readFileSync(src));
+  } catch { /* dönüştürerek dene */ }
+  return doc.embedPng(await imageToPngBuffer(src));
+}
+
 async function imagesToPdf(srcs, dir, base) {
   const doc = await PDFDocument.create();
   for (const src of srcs) {
-    const buf = sharp ? await sharp(src).rotate().png().toBuffer() : fs.readFileSync(src);
-    const img = await doc.embedPng(buf);
+    const img = await embedImageInPdf(doc, src);
     const page = doc.addPage([img.width, img.height]);
     page.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
   }
@@ -465,16 +493,17 @@ async function officeConvert(src, to, dir, base, extra = []) {
   const lo = soffice();
   if (!lo) throw new Error(t('Bu dönüşüm için LibreOffice gerekli (sudo apt install libreoffice)'));
   const tmp = tmpDir();
+  const profileDir = tmpDir();
   try {
-    // Ayrı bir profil klasörü: açık bir LibreOffice penceresi olsa bile çakışmasın.
-    const profile = `-env:UserInstallation=${pathToFileURL(path.join(os.tmpdir(), 'shiftdrop-lo-profile')).href}`;
+    // İş başına profil: paralel/ardışık LO çakışmasın, kilit dosyası kalmasın.
+    const profile = `-env:UserInstallation=${pathToFileURL(profileDir).href}`;
     await run(lo, [profile, '--headless', ...extra, '--convert-to', LO_FILTER[to] || to, '--outdir', tmp, src], { timeout: 240000 });
     const produced = fs.readdirSync(tmp).filter((f) => !f.startsWith('.'));
     if (!produced.length) throw new Error(t('LibreOffice çıktı üretmedi'));
     const out = uniquePath(dir, base, to);
     fs.copyFileSync(path.join(tmp, produced[0]), out);
     return out;
-  } finally { rm(tmp); }
+  } finally { rm(tmp); rm(profileDir); }
 }
 
 // Basit Markdown → HTML (başlık, kalın, italik, kod, bağlantı, liste, alıntı, paragraf).
@@ -572,47 +601,124 @@ async function subtitleConvert(src, to, dir, base) {
 const psq = (p) => `'${p.replace(/'/g, "''")}'`;
 const powershell = (cmd) => run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', cmd]);
 
+// Zip-slip: arşiv üyesi hedef klasörün dışına yazmasın. `..` ve mutlak yollar atılır.
+function safeArchiveRel(name) {
+  const parts = String(name).replace(/\\/g, '/').split('/').filter((p) => p && p !== '.' && p !== '..');
+  if (!parts.length || parts.some((p) => p.includes('\0'))) return null;
+  return parts.join(path.sep);
+}
+
+function reclaimExtractedTree(staging, dest) {
+  const walk = (dir, rel = '') => {
+    for (const name of fs.readdirSync(dir)) {
+      const from = path.join(dir, name);
+      const st = fs.lstatSync(from);
+      if (st.isSymbolicLink()) continue; // hedef dışına kaçış riski
+      const safe = safeArchiveRel(path.join(rel, name));
+      if (!safe) continue;
+      const to = path.join(dest, safe);
+      if (st.isDirectory()) {
+        fs.mkdirSync(to, { recursive: true });
+        walk(from, safe);
+      } else {
+        fs.mkdirSync(path.dirname(to), { recursive: true });
+        fs.copyFileSync(from, to);
+      }
+    }
+  };
+  walk(staging);
+}
+
 async function extractArchive(src, dest) {
   fs.mkdirSync(dest, { recursive: true });
   const ext = extOf(src);
-  if (ext === 'zip') {
-    // Windows 10+ ile gelen tar (libarchive) zip de açar.
-    if (IS_WIN && which('tar')) await run(which('tar'), ['-xf', src, '-C', dest]);
-    else if (IS_WIN) await powershell(`Expand-Archive -LiteralPath ${psq(src)} -DestinationPath ${psq(dest)} -Force`);
-    else if (which('unzip')) await run(which('unzip'), ['-q', '-o', src, '-d', dest]);
-    else await run(which('python3') || 'python3', ['-m', 'zipfile', '-e', src, dest]);
-  } else if (['tar', 'gz', 'tgz', 'tar.gz'].includes(ext)) {
-    if (ext === 'gz' && !/\.tar\.gz$/i.test(src)) {
-      // Tek dosyalık .gz
-      const out = path.join(dest, path.basename(src).replace(/\.gz$/i, ''));
-      await new Promise((res, rej) => fs.createReadStream(src).pipe(require('zlib').createGunzip()).pipe(fs.createWriteStream(out)).on('finish', res).on('error', rej));
-    } else await run(which('tar') || 'tar', ['-xf', src, '-C', dest]);
-  } else if (ext === 'rar' || ext === '7z') {
-    const tool = which('7z') || which('7zz') || which('unrar') || which('bsdtar') || (IS_WIN ? which('tar') : null);
-    if (!tool) throw new Error(t('RAR/7z için p7zip veya unrar gerekli'));
-    const name = path.basename(tool).replace(/\.exe$/i, '').toLowerCase();
-    if (name === 'unrar') await run(tool, ['x', '-o+', src, `${dest}${path.sep}`]);
-    else if (name === 'bsdtar' || name === 'tar') await run(tool, ['-xf', src, '-C', dest]);
-    else await run(tool, ['x', '-y', `-o${dest}`, src]);
-  } else throw new Error(t('Bilinmeyen arşiv türü'));
+  if (ext === 'gz' && !/\.tar\.gz$/i.test(src)) {
+    const out = path.join(dest, path.basename(src).replace(/\.gz$/i, ''));
+    const { pipeline } = require('stream/promises');
+    const zlib = require('zlib');
+    await pipeline(fs.createReadStream(src), zlib.createGunzip(), fs.createWriteStream(out));
+    return;
+  }
+
+  // Önce izole bir klasöre aç, sonra yalnızca güvenli göreli yolları taşı.
+  const staging = tmpDir();
+  try {
+    if (ext === 'zip') {
+      // Zip-slip'e karşı üyeleri kendimiz güvenli göreli yollarla yazıyoruz (python3 yoksa sistem aracı).
+      const py = which('python3') || which('python') || (IS_WIN ? which('py') : null);
+      if (py) {
+        const script = [
+          'import sys,zipfile,os',
+          'src,dest=sys.argv[1],sys.argv[2]',
+          'os.makedirs(dest,exist_ok=True)',
+          'with zipfile.ZipFile(src) as z:',
+          '  for i in z.infolist():',
+          '    name=i.filename.replace("\\\\","/")',
+          '    if not name or name.endswith("/"): continue',
+          '    parts=[p for p in name.split("/") if p and p not in (".","..")]',
+          '    if not parts or (i.external_attr >> 16) & 0o170000 == 0o120000: continue',
+          '    out=os.path.join(dest,*parts)',
+          '    os.makedirs(os.path.dirname(out) or ".",exist_ok=True)',
+          '    with z.open(i) as src_f, open(out,"wb") as dst_f: dst_f.write(src_f.read())',
+        ].join('\n');
+        await run(py, ['-c', script, src, staging]);
+      } else if (IS_WIN && which('tar')) await run(which('tar'), ['-xf', src, '-C', staging]);
+      else if (IS_WIN) await powershell(`Expand-Archive -LiteralPath ${psq(src)} -DestinationPath ${psq(staging)} -Force`);
+      else if (which('unzip')) await run(which('unzip'), ['-q', '-o', src, '-d', staging]);
+      else throw new Error(t('ZIP açmak için python3 veya unzip gerekli'));
+    } else if (['tar', 'tgz', 'tar.gz'].includes(ext) || (ext === 'gz' && /\.tar\.gz$/i.test(src))) {
+      // Çıktı reclaimExtractedTree ile süzülür; tar bayrakları platforma göre değişir.
+      const tar = which('tar') || 'tar';
+      try {
+        await run(tar, ['--no-same-owner', '--no-absolute-filenames', '-xf', src, '-C', staging]);
+      } catch {
+        await run(tar, ['-xf', src, '-C', staging]);
+      }
+    } else if (ext === 'rar' || ext === '7z') {
+      const tool = which('7z') || which('7zz') || which('unrar') || which('bsdtar') || (IS_WIN ? which('tar') : null);
+      if (!tool) throw new Error(t('RAR/7z için p7zip veya unrar gerekli'));
+      const name = path.basename(tool).replace(/\.exe$/i, '').toLowerCase();
+      if (name === 'unrar') await run(tool, ['x', '-o+', src, `${staging}${path.sep}`]);
+      else if (name === 'bsdtar' || name === 'tar') await run(tool, ['-xf', src, '-C', staging]);
+      else await run(tool, ['x', '-y', `-o${staging}`, src]);
+    } else throw new Error(t('Bilinmeyen arşiv türü'));
+    reclaimExtractedTree(staging, dest);
+  } finally { rm(staging); }
 }
 
 async function makeArchive(items, out, kind) {
-  const cwd = path.dirname(items[0]);
-  const names = items.map((p) => path.relative(cwd, p));
-  if (kind === 'zip') {
-    // Windows'un tar'ı -a ile uzantıya bakıp zip üretir.
-    if (IS_WIN && which('tar')) await run(which('tar'), ['-a', '-cf', out, ...names], { cwd });
-    else if (IS_WIN) await powershell(`Compress-Archive -LiteralPath ${items.map(psq).join(',')} -DestinationPath ${psq(out)}`);
-    else if (which('zip')) await run(which('zip'), ['-r', '-q', out, ...names], { cwd });
-    else {
-      const py = 'import sys,os,zipfile\nz=zipfile.ZipFile(sys.argv[1],"w",zipfile.ZIP_DEFLATED)\nfor n in sys.argv[2:]:\n  if os.path.isdir(n):\n    for r,_,fs in os.walk(n):\n      for f in fs: z.write(os.path.join(r,f))\n  else: z.write(n)\nz.close()';
-      await run(which('python3') || 'python3', ['-c', py, out, ...names], { cwd });
+  // Farklı klasörlerdeki dosyaları tek cwd altında topla; aksi halde zip'e `../` yolları girer.
+  const tmp = tmpDir();
+  try {
+    const names = [];
+    const used = new Set();
+    for (const item of items) {
+      let name = path.basename(item);
+      if (used.has(name)) {
+        const ext = path.extname(name);
+        const stem = path.basename(name, ext);
+        let i = 2;
+        while (used.has(`${stem} ${i}${ext}`)) i++;
+        name = `${stem} ${i}${ext}`;
+      }
+      used.add(name);
+      fs.cpSync(item, path.join(tmp, name), { recursive: true });
+      names.push(name);
     }
-  } else {
-    await run(which('tar') || 'tar', [kind === 'tar.gz' ? '-czf' : '-cf', out, ...names], { cwd });
-  }
-  return out;
+    if (kind === 'zip') {
+      // Windows'un tar'ı -a ile uzantıya bakıp zip üretir.
+      if (IS_WIN && which('tar')) await run(which('tar'), ['-a', '-cf', out, ...names], { cwd: tmp });
+      else if (IS_WIN) await powershell(`Compress-Archive -LiteralPath ${names.map((n) => psq(path.join(tmp, n))).join(',')} -DestinationPath ${psq(out)}`);
+      else if (which('zip')) await run(which('zip'), ['-r', '-q', out, ...names], { cwd: tmp });
+      else {
+        const py = 'import sys,os,zipfile\nz=zipfile.ZipFile(sys.argv[1],"w",zipfile.ZIP_DEFLATED)\nfor n in sys.argv[2:]:\n  if os.path.isdir(n):\n    for r,_,fs in os.walk(n):\n      for f in fs: z.write(os.path.join(r,f))\n  else: z.write(n)\nz.close()';
+        await run(which('python3') || 'python3', ['-c', py, out, ...names], { cwd: tmp });
+      }
+    } else {
+      await run(which('tar') || 'tar', [kind === 'tar.gz' ? '-czf' : '-cf', out, ...names], { cwd: tmp });
+    }
+    return out;
+  } finally { rm(tmp); }
 }
 
 async function archiveConvert(src, to, dir, base) {
@@ -667,7 +773,7 @@ async function perform(paths, mode, id, onProgress = () => {}) {
   const base = baseOf(first);
   const cat = categoryOf(first);
   const single = async (fn) => {
-    try { const out = await fn((p) => onProgress(p)); onProgress(1); return [{ ok: true, src: first, out }]; } catch (e) { return [{ ok: false, src: first, error: e.message }]; }
+    try { const out = await fn((p) => onProgress(p)); onProgress(1); return [{ ok: true, src: first, out }]; } catch (e) { return [{ ok: false, src: first, error: e?.message || String(e) }]; }
   };
 
   // Birden çok dosyayı tek çıktıya indiren işlemler
@@ -690,7 +796,7 @@ async function perform(paths, mode, id, onProgress = () => {}) {
       const out = mode === 'convert' ? await convertOne(paths[i], id, prog) : await toolOne(paths[i], id, prog);
       for (const o of [].concat(out)) results.push({ ok: true, src: paths[i], out: o });
     } catch (e) {
-      results.push({ ok: false, src: paths[i], error: e.message });
+      results.push({ ok: false, src: paths[i], error: e?.message || String(e) });
     }
     prog(1);
   }
