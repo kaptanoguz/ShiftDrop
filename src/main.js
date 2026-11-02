@@ -1,4 +1,12 @@
 const { app, BrowserWindow, ipcMain, screen, shell, Tray, Menu, nativeImage, globalShortcut, clipboard, dialog, Notification } = require('electron');
+
+// Yakalanmamış ana süreç hatası Electron'da kırmızı diyalog açar ve uygulamayı ölü bırakır.
+// Günlüğe yaz, pencereyi yeniden kurma yolu diyalogla kesilmesin.
+dialog.showErrorBox = (title, content) => { console.error(title + '\n' + content); };
+process.removeAllListeners('uncaughtException');
+process.removeAllListeners('unhandledRejection');
+process.on('uncaughtException', (err) => { console.error('ShiftDrop:', err && err.stack || err); });
+process.on('unhandledRejection', (err) => { console.error('ShiftDrop:', err && err.stack || err); });
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -75,16 +83,35 @@ function saveSettings() {
 
 const commonWeb = { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: false };
 
+function windowAlive(win) {
+  try { return !!win && !win.isDestroyed(); } catch { return false; }
+}
+function safeWebContents(win) {
+  try {
+    if (!windowAlive(win)) return null;
+    const wc = win.webContents;
+    if (!wc || wc.isDestroyed()) return null;
+    return wc;
+  } catch { return null; }
+}
+
 function createWheel() {
-  wheel = new BrowserWindow({
+  const win = new BrowserWindow({
     width: WHEEL, height: WHEEL, show: false, frame: false, transparent: true, resizable: false, movable: false,
     skipTaskbar: true, alwaysOnTop: true, focusable: false, hasShadow: false, backgroundColor: '#00000000',
     type: process.platform === 'linux' ? 'utility' : undefined,
     webPreferences: commonWeb,
   });
-  wheel.setAlwaysOnTop(true, 'screen-saver');
-  wheel.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  wheel.loadFile(path.join(__dirname, 'renderer', 'wheel.html'));
+  wheel = win;
+  win.on('closed', () => { if (wheel === win) wheel = null; });
+  try { win.setAlwaysOnTop(true, 'screen-saver'); } catch { /* pencere hemen kapanmış olabilir */ }
+  try { win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch { /* yoksay */ }
+  win.loadFile(path.join(__dirname, 'renderer', 'wheel.html')).catch((err) => console.error(err));
+  return win;
+}
+function ensureWheel() {
+  if (!windowAlive(wheel)) createWheel();
+  return wheel;
 }
 
 function bubbleBounds() {
@@ -94,26 +121,48 @@ function bubbleBounds() {
 }
 
 function createBubble() {
-  bubble = new BrowserWindow({
+  const win = new BrowserWindow({
     ...bubbleBounds(), show: false, frame: false, transparent: true, resizable: false, skipTaskbar: true,
     alwaysOnTop: true, focusable: false, hasShadow: false, backgroundColor: '#00000000',
     type: process.platform === 'linux' ? 'utility' : undefined,
     webPreferences: commonWeb,
   });
-  bubble.setAlwaysOnTop(true, 'screen-saver');
-  bubble.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  bubble.loadFile(path.join(__dirname, 'renderer', 'bubble.html'));
-  bubble.once('ready-to-show', () => settings.bubble && bubble.showInactive());
+  bubble = win;
+  win.on('closed', () => { if (bubble === win) bubble = null; });
+  try { win.setAlwaysOnTop(true, 'screen-saver'); } catch { /* yoksay */ }
+  try { win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch { /* yoksay */ }
+  win.loadFile(path.join(__dirname, 'renderer', 'bubble.html')).catch((err) => console.error(err));
+  win.once('ready-to-show', () => {
+    try { if (settings.bubble && windowAlive(win)) win.showInactive(); } catch (err) { console.error(err); }
+  });
+  return win;
+}
+function ensureBubble() {
+  if (!windowAlive(bubble)) createBubble();
+  return bubble;
 }
 
 function setBubble(on) {
   settings.bubble = on;
   saveSettings();
-  if (on) { bubble.setBounds(bubbleBounds()); bubble.showInactive(); } else bubble.hide();
+  const show = () => {
+    const win = ensureBubble();
+    if (!windowAlive(win)) return;
+    if (on) { win.setBounds(bubbleBounds()); win.showInactive(); }
+    else win.hide();
+  };
+  try { show(); }
+  catch (err) {
+    console.error(err);
+    try { if (windowAlive(bubble)) bubble.destroy(); } catch { /* yoksay */ }
+    bubble = null;
+    if (on) { try { show(); } catch (e2) { console.error(e2); } }
+  }
   buildTray();
 }
 
 function centerOn(pt) {
+  if (!windowAlive(wheel)) return;
   const { workArea: wa } = screen.getDisplayNearestPoint(pt);
   // Çark imlecin tam ortasında açılır; ekran kenarındaysa içeri kaydırılır.
   const x = Math.max(wa.x, Math.min(pt.x - WHEEL / 2, wa.x + wa.width - WHEEL));
@@ -133,21 +182,41 @@ function cursorForGesture() {
 
 function openWheel(mode, source, point) {
   clearTimeout(hideTimer);
-  if (!wheel || wheel.isDestroyed()) return;
-  if (!wheel.isVisible()) {
-    centerOn(point || screen.getCursorScreenPoint());
-    wheel.showInactive();
-    wheel.webContents.send('wheel:open', { mode, source, keys: settings.keys });
-  } else {
-    wheel.webContents.send('wheel:mode', { mode });
-  }
+  // showInactive XWayland'de pencereyi senkron kapatabiliyor; hemen ardından webContents
+  // erişimi "Object has been destroyed" fırlatır. Yoksa çarkı bir kez yeniden kur.
+  const run = () => {
+    const win = ensureWheel();
+    if (!windowAlive(win)) return false;
+    let visible = false;
+    try { visible = win.isVisible(); } catch { return false; }
+    if (!visible) {
+      centerOn(point || cursorForGesture());
+      if (!windowAlive(wheel)) return false;
+      wheel.showInactive();
+      if (!windowAlive(wheel)) return false;
+    }
+    const wc = safeWebContents(wheel);
+    if (!wc) return false;
+    wc.send(visible ? 'wheel:mode' : 'wheel:open', visible ? { mode } : { mode, source, keys: settings.keys });
+    return true;
+  };
+  try { if (run()) return; } catch (err) { console.error('Çark açılamadı:', err); }
+  try { if (windowAlive(wheel)) wheel.destroy(); } catch { /* yoksay */ }
+  wheel = null;
+  try { run(); } catch (err) { console.error('Çark yeniden kurulamadı:', err); }
 }
 
 function closeWheel(force = false) {
-  if (!wheel.isVisible() || (busy && !force)) return;
-  wheel.webContents.send('wheel:close');
+  if (!windowAlive(wheel)) return;
+  try {
+    if (!wheel.isVisible() || (busy && !force)) return;
+    safeWebContents(wheel)?.send('wheel:close');
+  } catch (err) { console.error(err); return; }
   clearTimeout(hideTimer);
-  hideTimer = setTimeout(() => wheel.hide(), 200); // kapanış animasyonu
+  const win = wheel;
+  hideTimer = setTimeout(() => {
+    try { if (windowAlive(win)) win.hide(); } catch (err) { console.error(err); }
+  }, 200); // kapanış animasyonu
 }
 
 // Sürükleme bırakıldıktan sonra kısa bekle: çarka bırakıldıysa renderer "busy" bildirir.
@@ -173,7 +242,10 @@ function startHooks() {
   };
 
   uIOhook.on('keydown', (e) => {
-    if (e.keycode === K.Escape && wheel.isVisible() && !busy) { closeWheel(); return; }
+    if (e.keycode === K.Escape && windowAlive(wheel) && !busy) {
+      try { if (wheel.isVisible()) closeWheel(); } catch (err) { console.error(err); }
+      return;
+    }
     const mode = keyMode(e.keycode);
     // Tangerine gibi: dosyayı sürüklemeye başla, sonra tuşa dokun. Tuş bırakılsa da çark açık kalır.
     if (mode && drag.active) openWheel(mode, 'key');
@@ -203,7 +275,7 @@ function startEvdev() {
   const watch = startEvdevWatch((type, code, value) => {
     const action = gesture.feed(type, code, value, settings.keys);
     if (!action || !wheel || wheel.isDestroyed()) return;
-    if (action.escape) { if (wheel.isVisible() && !busy) closeWheel(); return; }
+    if (action.escape) { if (windowAlive(wheel) && !busy) { try { if (wheel.isVisible()) closeWheel(); } catch { /* yoksay */ } } return; }
     if (action.release) { scheduleCloseCheck(); return; }
     if (action.open) openWheel(action.open, 'key', cursorForGesture());
   });
@@ -326,7 +398,7 @@ function openFloat(file) {
   });
   win.setAlwaysOnTop(true, 'floating');
   win.setVisibleOnAllWorkspaces(true);
-  win.loadFile(path.join(__dirname, 'renderer', 'float.html'), { query: { file, href: fileUrl(file) } });
+  win.loadFile(path.join(__dirname, 'renderer', 'float.html'), { query: { file, href: fileUrl(file) } }).catch((err) => console.error(err));
   floats.add(win);
   win.on('closed', () => floats.delete(win));
 }
@@ -413,7 +485,10 @@ function setLanguage(code) {
   saveSettings();
   i18n.setLang(code);
   buildTray();
-  for (const w of [wheel, bubble, ...floats]) if (w && !w.isDestroyed()) w.webContents.reload();
+  for (const w of [wheel, bubble, ...floats]) {
+    const wc = safeWebContents(w);
+    try { if (wc && !wc.isCrashed()) wc.reload(); } catch (err) { console.error(err); }
+  }
 }
 
 // ---------- IPC ----------
@@ -445,14 +520,17 @@ ipcMain.on('bubble:drop', (_e, { mode, paths }) => {
   trustPaths(paths);
   busy = true; // mouseup kapanış yarışını kes
   openWheel(mode || 'convert', 'bubble');
-  if (wheel && !wheel.isDestroyed()) wheel.webContents.send('wheel:files', { paths });
+  try { safeWebContents(wheel)?.send('wheel:files', { paths }); } catch (err) { console.error(err); }
 });
 ipcMain.on('bubble:moveY', (_e, dy) => {
-  const b = bubble.getBounds();
-  const { workArea: wa } = screen.getPrimaryDisplay();
-  const y = Math.max(wa.y, Math.min(b.y + dy, wa.y + wa.height - b.height));
-  bubble.setBounds({ ...b, y });
-  settings.bubbleY = (y - wa.y) / Math.max(1, wa.height - b.height);
+  if (!windowAlive(bubble)) return;
+  try {
+    const b = bubble.getBounds();
+    const { workArea: wa } = screen.getPrimaryDisplay();
+    const y = Math.max(wa.y, Math.min(b.y + dy, wa.y + wa.height - b.height));
+    bubble.setBounds({ ...b, y });
+    settings.bubbleY = (y - wa.y) / Math.max(1, wa.height - b.height);
+  } catch (err) { console.error(err); }
 });
 ipcMain.on('bubble:moved', saveSettings);
 
@@ -494,12 +572,48 @@ function announce() {
 
 // Zaten açıkken tekrar başlatılırsa (menüden, Gear Lever'dan…) yeni kopya kapanır; çalışan kopya çarkı gösterir.
 app.on('second-instance', () => {
-  if (!wheel) return;
   openWheel('convert', 'shortcut');
   announce();
 });
 
 if (IS_WIN) app.setAppUserModelId('app.shiftdrop');
+
+function runWindowReviveTest() {
+  const failures = [];
+  const check = (name, cond) => { console.log(cond ? 'ok  ' : 'FAIL', name); if (!cond) failures.push(name); };
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  (async () => {
+    for (let i = 0; i < 3; i++) {
+      if (windowAlive(wheel)) wheel.destroy();
+      openWheel('convert', 'shortcut');
+      await wait(250);
+      let visible = false;
+      try { visible = windowAlive(wheel) && wheel.isVisible(); } catch { visible = false; }
+      check('shortcut revive ' + i, visible);
+      closeWheel(true);
+      await wait(280);
+      if (windowAlive(bubble)) bubble.destroy();
+      setBubble(true);
+      await wait(250);
+      let bubbleUp = false;
+      try { bubbleUp = windowAlive(bubble) && bubble.isVisible(); } catch { bubbleUp = false; }
+      check('bubble revive ' + i, bubbleUp);
+      openWheel('convert', 'bubble');
+      await wait(200);
+      check('bubble opens wheel ' + i, windowAlive(wheel));
+      closeWheel(true);
+    }
+    const doomed = ensureWheel();
+    doomed.once('show', () => { try { doomed.destroy(); } catch { /* yoksay */ } });
+    openWheel('convert', 'bubble');
+    await wait(250);
+    let survived = false;
+    try { survived = windowAlive(wheel) && wheel.isVisible(); } catch { survived = false; }
+    check('show sırasında yok edilince yeniden kurulur', survived);
+    console.log(failures.length ? 'E2E_FAIL ' + failures.join(', ') : 'E2E_OK');
+    app.exit(failures.length ? 1 : 0);
+  })().catch((err) => { console.error(err); app.exit(1); });
+}
 
 if (!relaunching) app.whenReady().then(() => {
   if (!isPrimary) return;
@@ -518,10 +632,19 @@ if (!relaunching) app.whenReady().then(() => {
       console.error(t('Wayland: diğer uygulamaların tuşları görünmez. Dosyayı sağ kenardaki balona sürükle. {s} çarkı açar.', { s: 'Ctrl+Alt+Space' }));
       if (evdevDevices) console.error(t('Çekirdek girdi aygıtı da dinleniyor; Shift jesti oturum izin verirse çalışır.'));
     }
-    globalShortcut.register(TOGGLE_SHORTCUT, () => (wheel.isVisible() ? closeWheel(true) : openWheel('convert', 'shortcut')));
+    globalShortcut.register(TOGGLE_SHORTCUT, () => {
+      try {
+        if (windowAlive(wheel) && wheel.isVisible()) closeWheel(true);
+        else openWheel('convert', 'shortcut');
+      } catch (err) { console.error(err); }
+    });
     buildTray();
     if (!HIDDEN) announce();
-    screen.on('display-metrics-changed', () => bubble.setBounds(bubbleBounds()));
+    screen.on('display-metrics-changed', () => {
+      if (!windowAlive(bubble)) return;
+      try { bubble.setBounds(bubbleBounds()); } catch (err) { console.error(err); }
+    });
+    if (process.env.SHIFTDROP_E2E === '1') runWindowReviveTest();
   };
   if (process.platform === 'linux') setTimeout(bootUi, 150);
   else bootUi();
