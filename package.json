@@ -1,7 +1,7 @@
 {
   "name": "shiftdrop",
   "productName": "ShiftDrop",
-  "version": "1.2.1",
+  "version": "1.2.3",
   "description": "Shift basılıyken dosyayı sürükle, anında dönüştür.",
   "main": "src/main.js",
   "license": "MIT",
@@ -24,7 +24,7 @@
     "uiohook-napi": "^1.5.5"
   },
   "devDependencies": {
-    "electron": "^44.9.0",
+    "electron": "^44.10.1",
     "electron-builder": "^26.15.3"
   },
   "build": {

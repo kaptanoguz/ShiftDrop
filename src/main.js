@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, screen, shell, Tray, Menu, nativeImage, globalShortcut, clipboard, dialog, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
 const { spawn } = require('child_process');
 const { optionsFor, perform } = require('./engine');
 const i18n = require('./i18n');
@@ -35,7 +36,15 @@ const floats = new Set();
 
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 function loadSettings() {
-  try { settings = { ...settings, ...JSON.parse(fs.readFileSync(settingsFile(), 'utf8')) }; } catch { /* ilk açılış */ }
+  try {
+    const saved = JSON.parse(fs.readFileSync(settingsFile(), 'utf8'));
+    settings = {
+      ...settings,
+      ...saved,
+      // Eski/eksik kayıtlarda tuş eşlemesi kaybolmasın.
+      keys: { ...settings.keys, ...(saved.keys || {}) },
+    };
+  } catch { /* ilk açılış */ }
 }
 function saveSettings() {
   try { fs.mkdirSync(path.dirname(settingsFile()), { recursive: true }); fs.writeFileSync(settingsFile(), JSON.stringify(settings, null, 2)); } catch { /* yoksay */ }
@@ -156,7 +165,23 @@ function startHooks() {
 
 // ---------- Dosya eylemleri (Alt çarkı) ----------
 
-const fileUrl = (p) => `file://${encodeURI(p).replace(/#/g, '%23').replace(/\?/g, '%3F')}`;
+const fileUrl = (p) => pathToFileURL(p).href;
+// Renderer'dan gelen yolları son bırakılan/işlenen dosyalarla sınırla.
+const trustedPaths = new Set();
+function trustPaths(paths) {
+  for (const p of paths || []) if (p && typeof p === 'string') trustedPaths.add(path.resolve(p));
+}
+function isTrustedPath(p) {
+  if (!p || typeof p !== 'string') return false;
+  const resolved = path.resolve(p);
+  if (trustedPaths.has(resolved)) return true;
+  // Çıktı dosyaları kaynakla aynı klasörde uniquePath ile üretilir; üst klasör güvenilir olsun.
+  for (const trusted of trustedPaths) {
+    const dir = path.dirname(trusted);
+    if (resolved === dir || resolved.startsWith(dir + path.sep)) return true;
+  }
+  return false;
+}
 
 function openTerminal(dir) {
   const candidates = [
@@ -211,9 +236,10 @@ async function runAction(paths, id) {
     case 'copy': {
       const uris = paths.map(fileUrl);
       if (process.platform === 'linux') {
-        // GNOME/KDE dosya yöneticileri bu biçimi "yapıştır" olarak tanır.
+        // Ardışık writeBuffer Linux'ta önceki hedefi siler. Nautilus/Cinnamon için GNOME
+        // biçimi yeterli; düz metin yolu da yazılsın diye önce text, sonra tek buffer.
+        clipboard.write({ text: paths.join('\n') });
         clipboard.writeBuffer('x-special/gnome-copied-files', Buffer.from(`copy\n${uris.join('\n')}`));
-        clipboard.writeBuffer('text/uri-list', Buffer.from(uris.join('\r\n')));
       } else if (IS_WIN) {
         // Gezgin'in "yapıştır" ile tanıdığı dosya listesi (CF_HDROP) için PowerShell kullanıyoruz.
         const list = paths.map((p) => `'${p.replace(/'/g, "''")}'`).join(',');
@@ -243,6 +269,7 @@ async function runAction(paths, id) {
 // ---------- Yüzen dosya (Float) ----------
 
 function openFloat(file) {
+  trustPaths([file]);
   const pt = screen.getCursorScreenPoint();
   const win = new BrowserWindow({
     width: 240, height: 260, x: pt.x - 120 + floats.size * 24, y: pt.y - 130 + floats.size * 24,
@@ -251,7 +278,7 @@ function openFloat(file) {
   });
   win.setAlwaysOnTop(true, 'floating');
   win.setVisibleOnAllWorkspaces(true);
-  win.loadFile(path.join(__dirname, 'renderer', 'float.html'), { query: { file } });
+  win.loadFile(path.join(__dirname, 'renderer', 'float.html'), { query: { file, href: fileUrl(file) } });
   floats.add(win);
   win.on('closed', () => floats.delete(win));
 }
@@ -313,7 +340,12 @@ function setAutostart(on) {
     return;
   }
   if (!on) { fs.rmSync(autostartFile(), { force: true }); return; }
-  const exec = process.env.APPIMAGE || (app.isPackaged ? process.execPath : `${process.execPath} ${path.join(__dirname, '..')}`);
+  const quote = (s) => /[\s"\\]/.test(s) ? `"${s.replace(/"/g, '\\"')}"` : s;
+  const exec = process.env.APPIMAGE
+    ? quote(process.env.APPIMAGE)
+    : app.isPackaged
+      ? quote(process.execPath)
+      : `${quote(process.execPath)} ${quote(path.join(__dirname, '..'))}`;
   fs.mkdirSync(path.dirname(autostartFile()), { recursive: true });
   fs.writeFileSync(autostartFile(), `[Desktop Entry]\nType=Application\nName=ShiftDrop\nExec=${exec} --hidden\nX-GNOME-Autostart-enabled=true\n`);
 }
@@ -339,22 +371,33 @@ function setLanguage(code) {
 
 ipcMain.on('i18n', (e) => { e.returnValue = { lang: i18n.getLang(), dict: i18n.getLang() === 'en' ? i18n.EN : {} }; });
 
-ipcMain.handle('options', (_e, { paths, mode }) => optionsFor(paths, mode));
-ipcMain.on('busy', (_e, v) => { busy = v; if (!v) scheduleCloseCheck(900); });
+ipcMain.handle('options', (_e, { paths, mode }) => {
+  if (Array.isArray(paths)) trustPaths(paths);
+  return optionsFor(paths, mode);
+});
+ipcMain.on('busy', (_e, v) => { busy = !!v; if (!v) scheduleCloseCheck(900); });
 ipcMain.on('wheel:dismiss', () => closeWheel());
-ipcMain.on('reveal', (_e, p) => shell.showItemInFolder(p));
-ipcMain.on('open-path', (_e, p) => shell.openPath(p));
+ipcMain.on('reveal', (_e, p) => { if (isTrustedPath(p)) shell.showItemInFolder(p); });
+ipcMain.on('open-path', (_e, p) => { if (isTrustedPath(p)) shell.openPath(p); });
 ipcMain.on('float:close', (e) => BrowserWindow.fromWebContents(e.sender)?.close());
 
-ipcMain.on('start-drag', async (e, file) => {
-  let icon;
-  try { icon = await app.getFileIcon(file, { size: 'normal' }); } catch { /* yoksay */ }
-  if (!icon || icon.isEmpty()) icon = nativeImage.createFromPath(path.join(ASSETS, 'tray.png'));
-  e.sender.startDrag({ file, icon });
+// dragstart sırasında senkron olmalı; async getFileIcon jestini kaçırır (özellikle Windows).
+ipcMain.on('start-drag', (e, file) => {
+  if (!isTrustedPath(file) || !fs.existsSync(file)) { e.returnValue = false; return; }
+  const icon = nativeImage.createFromPath(path.join(ASSETS, 'tray.png'));
+  try { e.sender.startDrag({ file, icon }); e.returnValue = true; } catch { e.returnValue = false; }
 });
 
 // Balon: üzerine dosya sürüklenince çarkı imlecin olduğu yerde aç.
 ipcMain.on('bubble:dragenter', (_e, { mode }) => openWheel(mode, 'bubble'));
+// Balona bırakılırsa dosya yollarını çarka ilet (aksi halde bırakma yutulur).
+ipcMain.on('bubble:drop', (_e, { mode, paths }) => {
+  if (!paths?.length) return;
+  trustPaths(paths);
+  busy = true; // mouseup kapanış yarışını kes
+  openWheel(mode || 'convert', 'bubble');
+  if (wheel && !wheel.isDestroyed()) wheel.webContents.send('wheel:files', { paths });
+});
 ipcMain.on('bubble:moveY', (_e, dy) => {
   const b = bubble.getBounds();
   const { workArea: wa } = screen.getPrimaryDisplay();
@@ -365,11 +408,20 @@ ipcMain.on('bubble:moveY', (_e, dy) => {
 ipcMain.on('bubble:moved', saveSettings);
 
 ipcMain.handle('perform', async (e, { paths, mode, id }) => {
+  if (!Array.isArray(paths) || !paths.length || paths.some((p) => !isTrustedPath(p))) {
+    return [{ ok: false, src: paths?.[0], error: t('Geçersiz dosya yolu') }];
+  }
   const send = (p) => !e.sender.isDestroyed() && e.sender.send('progress', p);
   if (mode === 'actions') {
-    try { return await runAction(paths, id); } catch (err) { return [{ ok: false, src: paths[0], error: err.message }]; }
+    try {
+      const results = await runAction(paths, id);
+      for (const r of results) if (r.ok && r.out) trustPaths([r.out]);
+      return results;
+    } catch (err) { return [{ ok: false, src: paths[0], error: err?.message || String(err) }]; }
   }
-  return perform(paths, mode, id, send);
+  const results = await perform(paths, mode, id, send);
+  for (const r of results) if (r.ok && r.out) trustPaths([].concat(r.out));
+  return results;
 });
 
 // ---------- Başlangıç ----------
@@ -405,7 +457,8 @@ app.whenReady().then(() => {
   createWheel();
   createBubble();
   hooksOk = startHooks();
-  if (!hooksOk && !settings.bubble) settings.bubble = true;
+  // Tuş kancası yoksa kenar balonu tek giriş yolu — ayarı açmak yetmez, pencereyi de göster.
+  if (!hooksOk) setBubble(true);
   // Yedek: kısayol çarkı imlecin altında açar; dosyayı sonra üzerine bırakabilirsin.
   globalShortcut.register(TOGGLE_SHORTCUT, () => (wheel.isVisible() ? closeWheel(true) : openWheel('convert', 'shortcut')));
   buildTray();
@@ -413,7 +466,8 @@ app.whenReady().then(() => {
   screen.on('display-metrics-changed', () => bubble.setBounds(bubbleBounds()));
 });
 
-app.on('window-all-closed', (e) => e.preventDefault());
+// Tepsi uygulaması: son pencere kapanınca çıkma (Electron bu olaya argüman vermez).
+app.on('window-all-closed', () => {});
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   try { require('uiohook-napi').uIOhook.stop(); } catch { /* yoksay */ }

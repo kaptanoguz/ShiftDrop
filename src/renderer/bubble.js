@@ -10,7 +10,13 @@ document.addEventListener('dragenter', (e) => {
 });
 document.addEventListener('dragover', (e) => { e.preventDefault(); });
 document.addEventListener('dragleave', (e) => { if (!e.relatedTarget) { document.body.classList.remove('hot'); sent = false; } });
-document.addEventListener('drop', (e) => { e.preventDefault(); document.body.classList.remove('hot'); sent = false; });
+document.addEventListener('drop', (e) => {
+  e.preventDefault();
+  document.body.classList.remove('hot');
+  sent = false;
+  const paths = [...e.dataTransfer.files].map((f) => api.pathFor(f)).filter(Boolean);
+  if (paths.length) api.bubbleDrop(modeFrom(e), paths);
+});
 
 // Balonu kenar boyunca yukarı/aşağı taşı
 let lastY = null;

@@ -13,7 +13,8 @@ const EN = {
   'Ham': 'Raw', 'Simge': 'Icon', 'Animasyon': 'Animated', 'Sesi çıkar': 'Extract audio', 'Eski': 'Legacy', 'Konuşma': 'Speech',
   'Metin': 'Text', 'E-kitap': 'E-book', 'Yazdır': 'Print', 'Zengin': 'Rich text', 'Slaytlar': 'Slides', 'Virgül': 'Comma',
   'Sekme': 'Tab', 'Sadece metin': 'Text only', 'Evrensel': 'Universal', 'Sıkıştırmasız': 'Uncompressed', 'Klasöre aç': 'To a folder',
-  'Aç': 'Open',
+  'Aç': 'Open', 'İlk sayfa': 'First page',
+  'Geçersiz dosya yolu': 'Invalid file path',
 
   // Araçlar
   'Sıkıştır': 'Compress', 'Aynı format': 'Same format', 'Yarıya indir': 'Halve', 'Sığdır': 'Fit', 'Döndür': 'Rotate',
@@ -51,6 +52,7 @@ const EN = {
   'Bu dönüşüm için LibreOffice gerekli (sudo apt install libreoffice)': 'LibreOffice is required for this conversion (libreoffice.org)',
   'LibreOffice çıktı üretmedi': 'LibreOffice produced no output',
   'RAR/7z için p7zip veya unrar gerekli': 'p7zip or unrar is required for RAR/7z',
+  'ZIP açmak için python3 veya unzip gerekli': 'python3 or unzip is required to open ZIP files',
   'Bilinmeyen arşiv türü': 'Unknown archive type', 'Bu dosya türü desteklenmiyor': 'This file type is not supported',
   'Bu dosya için araç yok': 'No tools for this file', 'Bilinmeyen eylem': 'Unknown action', 'Bilinmeyen hata': 'Unknown error',
 

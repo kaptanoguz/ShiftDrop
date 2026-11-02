@@ -8,7 +8,7 @@ const t = (str, vars) => {
   return out;
 };
 
-const channels = ['wheel:open', 'wheel:mode', 'wheel:close', 'progress'];
+const channels = ['wheel:open', 'wheel:mode', 'wheel:close', 'wheel:files', 'progress'];
 
 contextBridge.exposeInMainWorld('shiftdrop', {
   platform: process.platform,
@@ -21,9 +21,10 @@ contextBridge.exposeInMainWorld('shiftdrop', {
   dismiss: () => ipcRenderer.send('wheel:dismiss'),
   reveal: (p) => ipcRenderer.send('reveal', p),
   openPath: (p) => ipcRenderer.send('open-path', p),
-  startDrag: (p) => ipcRenderer.send('start-drag', p),
+  startDrag: (p) => ipcRenderer.sendSync('start-drag', p),
   closeFloat: () => ipcRenderer.send('float:close'),
   bubbleEnter: (mode) => ipcRenderer.send('bubble:dragenter', { mode }),
+  bubbleDrop: (mode, paths) => ipcRenderer.send('bubble:drop', { mode, paths }),
   bubbleMove: (dy) => ipcRenderer.send('bubble:moveY', dy),
   bubbleMoved: () => ipcRenderer.send('bubble:moved'),
   on: (channel, fn) => { if (channels.includes(channel)) ipcRenderer.on(channel, (_e, d) => fn(d)); },
