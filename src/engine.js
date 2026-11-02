@@ -608,6 +608,12 @@ function safeArchiveRel(name) {
   return parts.join(path.sep);
 }
 
+function isContained(root, candidate) {
+  const base = path.resolve(root);
+  const target = path.resolve(candidate);
+  return target === base || target.startsWith(base + path.sep);
+}
+
 function reclaimExtractedTree(staging, dest) {
   const walk = (dir, rel = '') => {
     for (const name of fs.readdirSync(dir)) {
@@ -617,10 +623,12 @@ function reclaimExtractedTree(staging, dest) {
       const safe = safeArchiveRel(path.join(rel, name));
       if (!safe) continue;
       const to = path.join(dest, safe);
+      if (!isContained(dest, to)) continue;
       if (st.isDirectory()) {
         fs.mkdirSync(to, { recursive: true });
         walk(from, safe);
-      } else {
+      } else if (st.isFile()) {
+        // FIFO/soket/aygıt kopyalamak takılır veya hedef dışına sızabilir.
         fs.mkdirSync(path.dirname(to), { recursive: true });
         fs.copyFileSync(from, to);
       }
@@ -667,11 +675,14 @@ async function extractArchive(src, dest) {
       else if (which('unzip')) await run(which('unzip'), ['-q', '-o', src, '-d', staging]);
       else throw new Error(t('ZIP açmak için python3 veya unzip gerekli'));
     } else if (['tar', 'tgz', 'tar.gz'].includes(ext) || (ext === 'gz' && /\.tar\.gz$/i.test(src))) {
-      // Çıktı reclaimExtractedTree ile süzülür; tar bayrakları platforma göre değişir.
+      // Çıktı reclaimExtractedTree ile süzülür. GNU tar'da --no-absolute-filenames yok;
+      // bilinmeyen bayrak ilk çağrıyı her zaman düşürüp hatayı yutuyordu.
       const tar = which('tar') || 'tar';
       try {
-        await run(tar, ['--no-same-owner', '--no-absolute-filenames', '-xf', src, '-C', staging]);
-      } catch {
+        await run(tar, ['--no-same-owner', '-xf', src, '-C', staging]);
+      } catch (err) {
+        const msg = String(err?.message || err);
+        if (!/option|unrecognized|unknown|invalid|not supported|usage/i.test(msg)) throw err;
         await run(tar, ['-xf', src, '-C', staging]);
       }
     } else if (ext === 'rar' || ext === '7z') {
